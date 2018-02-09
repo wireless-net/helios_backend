@@ -1,0 +1,15 @@
+{application, backend, [
+    {description, ""},
+    {vsn, git},
+    {registered, []},
+    {applications, [
+    	kernel,
+    	stdlib,
+    	crypto,
+    	cowboy,
+    	compiler,
+    	lager,
+    	syntax_tools]},
+    {mod, { backend_app, []}},
+    {env, []}
+]}.

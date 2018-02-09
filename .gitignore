@@ -1,0 +1,7 @@
+deps/
+ebin/
+rel/erl_crash.dump
+rel/erws/
+.rebar
+*.swp
+
