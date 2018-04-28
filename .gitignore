@@ -2,6 +2,7 @@ deps/
 ebin/
 rel/erl_crash.dump
 rel/erws/
+erl_crash.dump
 .rebar
 *.swp
-
+.vscode

@@ -2,27 +2,14 @@
 %% This module is augmented by rec2json at compile time with functions for converting stat records to and from Erlang-JSON compatible formats.
 -module(contact).
 
--include("modem.hrl").
+-include("radio.hrl").
 
 -compile([{parse_transform, rec2json}]).
 
 -export([test/0]).
 
-% -record(contact, {	
-% 		id 			:: binary(),
-% 		timestamp	:: integer(),
-% 		frequency 	:: integer(),
-% 		ber 		:: integer(),
-% 		name 		:: binary(),
-% 		coordinates :: binary(),
-% 		power 		:: integer(),
-% 		radio 		:: binary(),
-% 		controller 	:: binary(),
-% 		antenna 	:: binary()
-% 	}).
-
 test() ->
-	Contact = 	#contact{	id 			= <<"KD6DRS">>,
+	Contact = 	#contact{	id 			= <<"K6DRS">>,
 							time		= 0,
 							channel		= 0,
 							frequency 	= 5357000,

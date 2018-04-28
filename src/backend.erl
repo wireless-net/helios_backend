@@ -37,4 +37,5 @@ stop() ->
     application:stop(cowlib),
     application:stop(crypto),
     application:stop(ranch),
-    mnesia:stop().
+    mnesia:stop(),
+    lager:stop().

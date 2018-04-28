@@ -2,7 +2,7 @@
 %% This module is augmented by rec2json at compile time with functions for converting stat records to and from Erlang-JSON compatible formats.
 -module(channel).
 
--include("modem.hrl").
+-include("radio.hrl").
 
 -compile([{parse_transform, rec2json}]).
 

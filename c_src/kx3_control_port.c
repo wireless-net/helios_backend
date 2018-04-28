@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
 				write_total = cmd_words[0];
 				if (write_total <= sizeof(mode)) {
 					memcpy(&mode, &cmdbuf_i[4], sizeof(mode));
-					syslog(LOG_INFO, "set mode %d\n", mode);
+					// syslog(LOG_INFO, "set mode %d\n", mode);
 					if (radioif_set_mode(&rif, mode)) {
 						res = RET_ERR;
 					}
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
 				if (radioif_get_mode(&rif, &mode)) {
 					res = RET_ERR;
 				} else {
-					syslog(LOG_INFO, "get mode %d\n", mode);
+					// syslog(LOG_INFO, "get mode %d\n", mode);
 					memcpy(&cmdbuf_o[2], &mode, sizeof(mode));
 					res = RET_OK;
 					res_data_len = 4;

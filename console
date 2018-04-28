@@ -1,1 +1,2 @@
-exec to_erl /tmp/backend/pipe
+#!/bin/sh
+exec to_erl /opt/k6drs/helios_backend/pipe

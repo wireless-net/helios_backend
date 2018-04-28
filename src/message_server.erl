@@ -29,7 +29,6 @@ start_link() ->
     Pid = spawn_link(?MODULE, init, [?MESSAGE_PORT]),
     {ok, Pid}.
 
-
 init(UdpPort) ->
     {ok, Socket} = gen_udp:open(UdpPort, [binary, {active, true}, {reuseaddr, true},{ip, loopback}]),
     lager:info("message server opened socket: ~p",[Socket]),
@@ -54,14 +53,14 @@ loop(Socket) ->
             % <<Len:32/unsigned-little-integer, Rest/binary>> = RestWithLen,
             % lager:info("Freq=~p Len=~p",[Freq,Len]),
             case whereis(ale) of
-                undefined -> lager:warning("ALE datalink is not running yet");
+                undefined -> lager:warning("ALE datalink is not running");
                 _ ->
                     send_words(Bin)
             end,             
             % gen_udp:send(Socket, Host, Socket, Bin),
             loop(Socket);
         {cmd, MsgBin} ->
-            lager:debug("sending message: ~p", [MsgBin]),
+            %%lager:debug("sending message: ~p", [MsgBin]),
             ok = gen_udp:send(Socket, {127,0,0,1}, ?CMD_PORT, MsgBin),
             loop(Socket);
         shutdown ->

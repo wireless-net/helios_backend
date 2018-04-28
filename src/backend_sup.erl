@@ -24,8 +24,8 @@ start_link() ->
 
 init([]) ->
     % Child1 = ?CHILD(message_server, worker),
-    % Child2 = ?CHILD(radio_control_port, worker),
-    % Child3 = ?CHILD(pa_control_port, worker),
-    Child4 = ?CHILD(ale, worker),
-    {ok, { {one_for_one, 5, 10}, [Child4]} }.
-
+    Child2 = ?CHILD(radio_control_port, worker),
+    Child3 = ?CHILD(pa_control_port, worker),
+    Child4 = ?CHILD(dsp_port, worker),
+    Child5 = ?CHILD(ale, worker),
+    {ok, { {one_for_one, 5, 10}, [Child2, Child3, Child4, Child5]} }.

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "K6DRS HF SDR Backend Service"
+echo "Copyright (C) 2017, Devin Butterfield."
+echo ""
+export ERL_LIBS=$PWD
+erl -mnesia dir "'$PWD/db'" -sname backend -setcookie k6drs -pa $PWD/ebin -pa $PWD/deps/*/ebin -config $PWD/priv/app.config -s backend

@@ -39,8 +39,10 @@ init(UdpPort) ->
 send_to_hmi(_Socket, {0,0,0,0}, _Port, _Data) ->
     %% we don't have a valid HMI address, dump Data on the floor
     ok;
-send_to_hmi(Socket, HmiAddr, Port, Data) ->
-    gen_udp:send(Socket, HmiAddr, Port, Data).
+send_to_hmi(_Socket, _HmiAddr, _Port, Data) ->
+    backend_handler ! {bin, Data},
+    ok.
+    % gen_udp:send(Socket, HmiAddr, Port, Data).
 
 loop(Socket, HmiAddr) ->
     % inet:setopts(Socket, [{active, once}]),

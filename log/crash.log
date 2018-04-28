@@ -1,0 +1,341 @@
+2018-04-14 11:06:08 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 11:07:44 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.271.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 11:11:26 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 11:17:57 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 11:19:22 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 11:24:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 11:48:06 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 12:26:06 =ERROR REPORT====
+Error in process <0.320.0> on node backend@iMac with exit value:
+{[{reason,badarg},{mfa,{backend_handler,websocket_init,3}},{stacktrace,[{erlang,register,[backend_handler,<0.320.0>],[]},{backend_handler,websocket_init,3,[{file,"src/backend_handler.erl"},{line,32}]},{cowboy_websocket,handler_init,3,[{file,"src/cowboy_websocket.erl"},{line,131}]},{cowboy_protocol,execute,4,[{file,"src/cowboy_protocol.erl"},{line,435}]}]},{req,[{socket,#Port<0.5354>},{transport,ranch_tcp},{connection,keepalive},{pid,<0.320.0>},{method,<<"GET">>},{version,'HTTP/1.1'},{peer,{{192,168,1,184},52684}},{host,<<"192.168.1.215">>},{host_info,undefined},{port,10100},{path,<<"/websocket">>},{path_info,undefined},{qs,<<>>},{qs_vals,undefined},{bindings,[]},{headers,[{<<"host">>,<<"192.168.1.215:10100">>},{<<"upgrade">>,<<"websocket">>},{<<"connection">>,<<"Upgrade">>},{<<"sec-websocket-key">>,<<"E6A8+NaXlu9rNVOqDt4nSQ==">>},{<<"sec-websocket-version">>,<<"13">>}]},{p_headers,[{<<"upgrade">>,[<<"websocket">>]},{<<"connection">>,[<<"upgrade">>]}]},{cookies,undefined},{meta,[{websocket_version,13},{websocket_compress,false}]},{body_state,waiting},{buffer,<<>>},{multipart,undefined},{resp_compress,false},{resp_state,waiting},{resp_headers,[]},{resp_body,<<>>},{onresponse,undefined}]},{opts,[]}],[{cowboy_websocket,handler_init,3,[{file,"src/cowboy_websocket.erl"},{line,149}]},{cowboy_protocol,execute,4,[{file,"src/cowboy_protocol.erl"},{line,435}]}]}
+2018-04-14 12:26:06 =ERROR REPORT====
+Ranch listener http had connection process started with cowboy_protocol:start_link/4 at <0.320.0> exit with reason: {[{reason,badarg},{mfa,{backend_handler,websocket_init,3}},{stacktrace,[{erlang,register,[backend_handler,<0.320.0>],[]},{backend_handler,websocket_init,3,[{file,"src/backend_handler.erl"},{line,32}]},{cowboy_websocket,handler_init,3,[{file,"src/cowboy_websocket.erl"},{line,131}]},{cowboy_protocol,execute,4,[{file,"src/cowboy_protocol.erl"},{line,435}]}]},{req,[{socket,#Port<0.5354>},{transport,ranch_tcp},{connection,keepalive},{pid,<0.320.0>},{method,<<"GET">>},{version,'HTTP/1.1'},{peer,{{192,168,1,184},52684}},{host,<<"192.168.1.215">>},{host_info,undefined},{port,10100},{path,<<"/websocket">>},{path_info,undefined},{qs,<<>>},{qs_vals,undefined},{bindings,[]},{headers,[{<<"host">>,<<"192.168.1.215:10100">>},{<<"upgrade">>,<<"websocket">>},{<<"connection">>,<<"Upgrade">>},{<<"sec-websocket-key">>,<<"E6A8+NaXlu9rNVOqDt4nSQ==">>},{<<"sec-websocket-version">>,<<"13">>}]},{p_headers,[{<<"upgrade">>,[<<"websocket">>]},{<<"connection">>,[<<"upgrade">>]}]},{cookies,undefined},{meta,[{websocket_version,13},{websocket_compress,false}]},{body_state,waiting},{buffer,<<>>},{multipart,undefined},{resp_compress,false},{resp_state,waiting},{resp_headers,[]},{resp_body,<<>>},{onresponse,undefined}]},{opts,[]}],[{cowboy_websocket,handler_init,3,[{file,"src/cowboy_websocket.erl"},{line,149}]},{cowboy_protocol,execute,4,[{file,"src/cowboy_protocol.erl"},{line,435}]}]}
+2018-04-14 15:50:10 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:27 =ERROR REPORT====
+Error in process <0.275.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:27 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.275.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:28 =ERROR REPORT====
+Error in process <0.288.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:28 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.288.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:28 =ERROR REPORT====
+Error in process <0.289.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:28 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.289.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:28 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.290.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:28 =ERROR REPORT====
+Error in process <0.290.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:29 =ERROR REPORT====
+Error in process <0.291.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:29 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.291.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:29 =ERROR REPORT====
+Error in process <0.292.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:29 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.292.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:29 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown
+     Reason:     reached_max_restart_intensity
+     Offender:   [{pid,<0.292.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:49 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.281.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:49 =ERROR REPORT====
+Error in process <0.281.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:49 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.282.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:49 =ERROR REPORT====
+Error in process <0.282.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:49 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.283.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:49 =ERROR REPORT====
+Error in process <0.283.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-14 15:56:50 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.284.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:50 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown
+     Reason:     reached_max_restart_intensity
+     Offender:   [{pid,<0.284.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-14 15:56:50 =ERROR REPORT====
+Error in process <0.284.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-04-25 13:05:48 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.271.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-25 13:05:48 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.270.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-25 13:05:48 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.269.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-25 18:04:55 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.268.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-25 18:04:56 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 09:38:46 =ERROR REPORT====
+** State machine ale terminating 
+** Last event in was {rx_word,3495017928}
+** When State == idle
+**      Data  == {state,<<0,0,0,0>>,none,0,0,0,[],none,{msg_state,incomplete,conclusion,[to,"HFL"],[],[[tis,"K6D"],82,83,64],[[]],0,147,29,31,0},outbound,unlinked,0,[],none,undefined,false,none,none,none}
+** Reason for termination = 
+** {{case_clause,{aborted,{no_exists,self_address}}},[{modem_db,read_self_address,1,[{file,"src/modem_db.erl"},{line,198}]},{ale,idle,2,[{file,"src/ale.erl"},{line,384}]},{gen_fsm,handle_msg,8,[{file,"gen_fsm.erl"},{line,483}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]}
+2018-04-27 09:38:46 =CRASH REPORT====
+  crasher:
+    initial call: ale:init/1
+    pid: <0.277.0>
+    registered_name: ale
+    exception exit: {{{case_clause,{aborted,{no_exists,self_address}}},[{modem_db,read_self_address,1,[{file,"src/modem_db.erl"},{line,198}]},{ale,idle,2,[{file,"src/ale.erl"},{line,384}]},{gen_fsm,handle_msg,8,[{file,"gen_fsm.erl"},{line,483}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]},[{gen_fsm,terminate,7,[{file,"gen_fsm.erl"},{line,602}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]}
+    ancestors: [backend_sup,<0.168.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.274.0>]
+    dictionary: []
+    trap_exit: false
+    status: running
+    heap_size: 4185
+    stack_size: 27
+    reductions: 62243
+  neighbours:
+2018-04-27 09:38:46 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{case_clause,{aborted,{no_exists,self_address}}},[{modem_db,read_self_address,1,[{file,"src/modem_db.erl"},{line,198}]},{ale,idle,2,[{file,"src/ale.erl"},{line,384}]},{gen_fsm,handle_msg,8,[{file,"gen_fsm.erl"},{line,483}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]}
+     Offender:   [{pid,<0.277.0>},{id,ale},{mfargs,{ale,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 09:41:38 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.276.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 09:41:38 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.275.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 09:43:55 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.272.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 09:43:55 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.271.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 09:58:22 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.268.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 09:58:22 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.267.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 10:49:20 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.278.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 10:49:20 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.277.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 11:41:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.278.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 11:41:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.277.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 11:42:13 =ERROR REPORT====
+** State machine ale terminating 
+** Last event in was {rx_word,3528572360}
+** When State == idle
+**      Data  == {state,<<0,0,0,0>>,none,0,0,0,[],[],0,none,{msg_state,incomplete,conclusion,[[to,"K6D"],82,83,64],[],[[tis,"K6D"],82,83,49],[[]],0,54,31,31,0},outbound,unlinked,0,[],none,undefined,false,none,none,none}
+** Reason for termination = 
+** {{case_clause,{ok,{self_address,"K6DRS",own,none,[],[all],default}}},[{ale,idle,2,[{file,"src/ale.erl"},{line,388}]},{gen_fsm,handle_msg,8,[{file,"gen_fsm.erl"},{line,483}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]}
+2018-04-27 11:42:13 =CRASH REPORT====
+  crasher:
+    initial call: ale:init/1
+    pid: <0.279.0>
+    registered_name: ale
+    exception exit: {{{case_clause,{ok,{self_address,"K6DRS",own,none,[],[all],default}}},[{ale,idle,2,[{file,"src/ale.erl"},{line,388}]},{gen_fsm,handle_msg,8,[{file,"gen_fsm.erl"},{line,483}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]},[{gen_fsm,terminate,7,[{file,"gen_fsm.erl"},{line,602}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]}
+    ancestors: [backend_sup,<0.170.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.276.0>]
+    dictionary: []
+    trap_exit: false
+    status: running
+    heap_size: 987
+    stack_size: 27
+    reductions: 33479
+  neighbours:
+2018-04-27 11:42:13 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{case_clause,{ok,{self_address,"K6DRS",own,none,[],[all],default}}},[{ale,idle,2,[{file,"src/ale.erl"},{line,388}]},{gen_fsm,handle_msg,8,[{file,"gen_fsm.erl"},{line,483}]},{proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,247}]}]}
+     Offender:   [{pid,<0.279.0>},{id,ale},{mfargs,{ale,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 11:44:57 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.278.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 11:44:57 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.277.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 11:58:44 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.274.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 11:58:45 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.273.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 22:20:55 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.274.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-04-27 22:20:55 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.273.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+

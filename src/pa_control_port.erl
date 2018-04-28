@@ -18,7 +18,7 @@
 
 -module(pa_control_port).
 
--export([open/2,close/0,init/3]).
+-export([open/2,close/0,init/4]).
 
 -export([   set_band/1
             ,get_band/0
@@ -37,15 +37,26 @@ start_link() ->
     {ok, Pid}.
 
 open(Device, Rate) ->
-    %% for now load the hr50 control port
-    spawn_link(?MODULE, init, [lists:concat([code:priv_dir(backend),"/hr50_control_port"]), Device, Rate]).
+    %% load the control port
+    EnabledPaPort = try radio_db:read_config(pa_control_port) of
+                        EnabledPa -> EnabledPa
+                    catch
+                        _:_ -> []
+                    end,
+    case EnabledPaPort of
+        hr50_control_port ->
+            spawn_link(?MODULE, init, [op, lists:concat([code:priv_dir(helios_backend),"/hr50_control_port"]), Device, Rate]);
+        _ ->
+            lager:warning("No supported PA control port is configured, PA control disabled"),
+            spawn_link(?MODULE, init, [nop, none, none, none])
+        %% ADD OTHER PA TYPES HERE
+        %% IF CALLED WITH UNSUPPORTED, IT BECOMES A NOP
+    end.
+
 
 close() ->
     pa_control_proc ! stop,
     unregister(pa_control_proc).
-
-% read() ->
-    % wait_port().
 
 set_band(Band) ->
     BandBin = <<Band:32/unsigned-little-integer>>,
@@ -86,25 +97,41 @@ call_port(Msg) ->
             Result
     end.
 
-init(ExtPrg, _Device, _Rate) ->
+init(nop, _, _, _) ->
     register(pa_control_proc, self()),
     process_flag(trap_exit, true),
-    % Port = open_port({spawn_executable, ExtPrg}, [{args, [Device, integer_to_list(Rate)]}, {packet, 2}, use_stdio,binary]),
+    loop(nop);    
+init(op, ExtPrg, _Device, _Rate) ->
+    register(pa_control_proc, self()),
+    process_flag(trap_exit, true),
     Port = open_port({spawn_executable, ExtPrg}, [{args, []}, {packet, 2}, use_stdio, binary, exit_status]),
     loop(Port).
 
-%% The pa_control_proc process loop
+%% The pa_control_proc process loop (No-OP version, when no hardware connected)
+loop(nop) ->
+    receive
+        {call, Caller, _Msg} ->
+            Caller ! {pa_control_proc, {ok, nop}},
+            loop(nop);
+        stop ->
+            exit(normal);
+        shutdown ->
+            exit(normal);
+        {'EXIT', _Port, Reason} ->
+            lager:info("Port terminated for reason: ~p", [Reason]),
+            exit(normal);
+        Unhandled ->
+            lager:error("Port got unhandled message ~p", [Unhandled]),
+            exit(port_terminated)        
+    end;    
+%% Normal version, with hardware
 loop(Port) ->
     receive
         {call, Caller, Msg} ->
-            lager:debug("got call, calling port..."),
             Port ! {self(), {command, encode(Msg)}},
-            lager:debug("waiting for result"),
             receive
                 %% if event comes in, it stays queued until we loop (because it won't match here)
                 {Port, {data, <<0:16/unsigned-little-integer,Data/binary>>}} ->
-                 % {data,<<0,0,253,182,200,189>>}
-                    lager:debug("got OK ~p",[Data]),
                     Caller ! {pa_control_proc, {ok, Data}};
                 {Port, {data, <<65535:16/unsigned-little-integer,_Arg/binary>>}} ->
                     lager:debug("got ERR"),
