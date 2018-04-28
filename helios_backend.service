@@ -7,7 +7,7 @@ Type=idle
 User=root
 Group=root
 Type=forking
-ExecStart=/opt/k6drs/sdr_backend/run_backend > /opt/k6drs/sdr_backend/systemctl.log 2>&1
+ExecStart=/opt/k6drs/helios_backend/run_backend > /opt/k6drs/helios_backend/systemctl.log 2>&1
 
 [Install]
 WantedBy=multi-user.target
