@@ -1,6 +1,6 @@
 -module(radio_db).
 
--export([	init_db/1 
+-export([	init_database/1 
 			,write_config/2
 			,read_config/1
 			,write_channel/8
@@ -22,30 +22,53 @@
 -include("radio.hrl").
 
 % must first do this:
-% erl -sname backend -mnesia dir "'$PWD/db'"
+%% % erl -sname backend -mnesia dir "'$PWD/db'"
+%% erl -mnesia dir "'$PWD/db'" -sname backend -setcookie k6drs -pa $PWD/ebin -pa $PWD/deps/*/ebin -config $PWD/priv/app.config -s backend
 % mnesia:create_schema([node()]).
-% q().
-% run_backend, then:
-% radio_db:init_db([node()]).
-% [deprecated???] radio_db:write_config(id, "K6DRS").
-% radio_db:write_hflink_channels().
+% radio_db:init_database("K6DRS").
+%% OWN: 	
+%%	radio_db:write_self_address("K6DRS", own, none, [], [all], default).
+%% NULL:	
+%%	radio_db:write_self_address("", null, none, [], [], default). 
+%% HFR:		
+%% 	radio_db:write_self_address("HFR", net, "K6DRS", [1], [all], default).
+%% HFN:		
+%%	radio_db:write_self_address("HFN", net, "K6DRS", [1], [all], default).
+%% HFL:		
+%%	radio_db:write_self_address("HFL", net, "K6DRS", [1], [all], default).
+%% GLOBALL:	
+%%	radio_db:write_self_address("@?", global_allcall, "K6DRS", [], [all], default).
+%% GLOBANY:	
+%%	radio_db:write_self_address("@@?", global_anycall, "K6DRS", [random], [all], default).
 
-%% OWN: 	radio_db:write_self_address("K6DRS", own, none, [], [all], default).
-%% NULL:	radio_db:write_self_address("", null, none, [], [], default). 
-%% HFR:		radio_db:write_self_address("HFR", net, "K6DRS", [1], [all], default).
-%% HFN:		radio_db:write_self_address("HFN", net, "K6DRS", [1], [all], default).
-%% HFL:		radio_db:write_self_address("HFL", net, "K6DRS", [1], [all], default).
-%% GLOBALL:	radio_db:write_self_address("@?", global_allcall, "K6DRS", [], [all], default).
-%% GLOBANY:	radio_db:write_self_address("@@?", global_anycall, "K6DRS", [random], [all], default).
+%% To initialie, do this:
+%% erl -mnesia dir "'$PWD/db'" -sname backend -setcookie k6drs -pa $PWD/ebin -pa $PWD/deps/*/ebin -config $PWD/priv/app.config -s backend
 
-%% ADD INSTRUCTIONS FOR BASIC SELF AND OTHER ADDRESS DB SETUP
+init_database(OwnAddr) ->
+	ok = mnesia:create_schema([node()]),
+    mnesia:create_table(config, [{disc_copies, [node()]},{attributes, record_info(fields, config)}]),
+    mnesia:create_table(channel, [{disc_copies, [node()]},{attributes, record_info(fields, channel)}]),
+    mnesia:create_table(contact, [{disc_copies, [node()]},{attributes, record_info(fields, contact)}]),
+	mnesia:create_table(self_address, [{disc_copies, [node()]},{attributes, record_info(fields, self_address)}]),
+	mnesia:create_table(other_address, [{disc_copies, [node()]},{attributes, record_info(fields, other_address)}]),
+	radio_db:write_config(id, OwnAddr),
+	radio_db:write_hflink_channels(),
+	%% OWN: 	
+	radio_db:write_self_address(OwnAddr, own, none, [], [all], default),
+	%% NULL:	
+	radio_db:write_self_address("", null, none, [], [], default), 
+	%% HFR:		
+	radio_db:write_self_address("HFR", net, OwnAddr, [1], [all], default),
+	%% HFN:		
+	radio_db:write_self_address("HFN", net, OwnAddr, [1], [all], default),
+	%% HFL:		
+	radio_db:write_self_address("HFL", net, OwnAddr, [1], [all], default),
+	%% GLOBALL:	
+	radio_db:write_self_address("@?", global_allcall, OwnAddr, [], [all], default),
+	%% GLOBANY:	
+	radio_db:write_self_address("@@?", global_anycall, OwnAddr, [random], [all], default),
+	ok.
 
-init_db(Nodes) ->
-    mnesia:create_table(config, [{disc_copies, Nodes},{attributes, record_info(fields, config)}]),
-    mnesia:create_table(channel, [{disc_copies, Nodes},{attributes, record_info(fields, channel)}]),
-    mnesia:create_table(contact, [{disc_copies, Nodes},{attributes, record_info(fields, contact)}]),
-	mnesia:create_table(self_address, [{disc_copies, Nodes},{attributes, record_info(fields, self_address)}]),
-	mnesia:create_table(other_address, [{disc_copies, Nodes},{attributes, record_info(fields, other_address)}]).
 
 write_config(Name, Value) ->
 	Config = #config{name = Name, value = Value},
