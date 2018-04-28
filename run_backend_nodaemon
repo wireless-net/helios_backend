@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo "K6DRS HF SDR Backend Service"
+echo "HELIOS Backend Service"
 echo "Copyright (C) 2017, Devin Butterfield."
 echo ""
 export ERL_LIBS=$PWD

@@ -1,4 +1,4 @@
-HELIOS SDR ALE Controller Updates Log
+HELIOS ALE Controller Updates Log
 
 1. fixed message char validation bug that allowed invalid sequence to break AMD messages
 2. added support for optional radio, pa, and tuner control ports to be configured
