@@ -3,7 +3,10 @@ ebin/
 rel/erl_crash.dump
 rel/erws/
 erl_crash.dump
+c_src/*.o
 .rebar
 *.swp
 .vscode
 db
+priv/hr50_control_port
+priv/kx3_control_port
