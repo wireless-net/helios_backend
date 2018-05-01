@@ -4,7 +4,7 @@
 # GNU Radio Python Flow Graph
 # Title: ALE2G Parallel V0.2 8-channels
 # Author: Devin Butterfield / K6DRS
-# Generated: Wed Apr 25 12:56:44 2018
+# Generated: Mon Apr 30 21:21:27 2018
 ##################################################
 
 from gnuradio import blocks
@@ -112,8 +112,6 @@ class ale2g_parallel_8_v0_2(gr.top_block):
         self.blocks_short_to_float_0 = blocks.short_to_float(1, 32768)
         (self.blocks_short_to_float_0).set_max_output_buffer(8192)
         self.blocks_float_to_short_0 = blocks.float_to_short(1, 32767)
-        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_float*1, 'test_file_60m.raw', False)
-        self.blocks_file_sink_0.set_unbuffered(False)
         self.blocks_complex_to_real_0_0_1_2 = blocks.complex_to_real(1)
         self.blocks_complex_to_real_0_0_1_1_0 = blocks.complex_to_real(1)
         self.blocks_complex_to_real_0_0_1_1 = blocks.complex_to_real(1)
@@ -163,7 +161,6 @@ class ale2g_parallel_8_v0_2(gr.top_block):
         self.connect((self.blocks_complex_to_real_0_0_1_0_0_0, 0), (self.k6drs_ale_monitor_0_0_0, 0))
         self.connect((self.blocks_complex_to_real_0_0_1_0_1, 0), (self.k6drs_ale2g_rx_phy_fec_sublayers_0_3_0, 0))
         self.connect((self.blocks_complex_to_real_0_0_1_0_1, 0), (self.k6drs_ale_monitor_0_0, 0))
-        self.connect((self.blocks_complex_to_real_0_0_1_1, 0), (self.blocks_file_sink_0, 0))
         self.connect((self.blocks_complex_to_real_0_0_1_1, 0), (self.k6drs_ale2g_rx_phy_fec_sublayers_0_1, 0))
         self.connect((self.blocks_complex_to_real_0_0_1_1, 0), (self.k6drs_ale_monitor_0_1_0, 0))
         self.connect((self.blocks_complex_to_real_0_0_1_1_0, 0), (self.k6drs_ale2g_rx_phy_fec_sublayers_0_3_1, 0))
