@@ -71,3 +71,48 @@
 2018-04-27 22:11:38.551 [error] <0.275.0>@ale:call_wait_response_tx_complete:1189 call_wait_response_tx_complete: datalink timeout: check modem!
 2018-04-27 22:20:55.875 [error] <0.272.0> Supervisor backend_sup had child pa_control_port started with pa_control_port:start_link() at <0.274.0> exit with reason normal in context shutdown_error
 2018-04-27 22:20:55.875 [error] <0.272.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.273.0> exit with reason normal in context shutdown_error
+2018-05-10 09:04:33.619 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.240.0> exit with reason normal in context shutdown_error
+2018-05-10 09:04:33.619 [error] <0.237.0> Supervisor backend_sup had child pa_control_port started with pa_control_port:start_link() at <0.239.0> exit with reason normal in context shutdown_error
+2018-05-10 09:04:33.619 [error] <0.237.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.238.0> exit with reason normal in context shutdown_error
+2018-05-25 15:31:33.304 [error] emulator Error in process <0.240.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:33.304 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.240.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:33.722 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.253.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:33.722 [error] emulator Error in process <0.253.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:34.143 [error] emulator Error in process <0.254.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:34.143 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.254.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:34.570 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.255.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:34.570 [error] emulator Error in process <0.255.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35.000 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.256.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:35.000 [error] emulator Error in process <0.256.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35.427 [error] emulator Error in process <0.257.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason reached_max_restart_intensity in context shutdown
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child pa_control_port started with pa_control_port:start_link() at <0.239.0> exit with reason normal in context shutdown_error
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.238.0> exit with reason normal in context shutdown_error
+2018-06-09 15:45:59.894 [error] emulator Error in process <0.240.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:45:59.894 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.240.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:00.262 [error] emulator Error in process <0.253.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00.262 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.253.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:00.627 [error] emulator Error in process <0.254.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00.627 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.254.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:00.994 [error] emulator Error in process <0.255.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00.994 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.255.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:01.356 [error] emulator Error in process <0.256.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:01.356 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.256.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:01.723 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:01.724 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason reached_max_restart_intensity in context shutdown
+2018-06-09 15:46:01.724 [error] emulator Error in process <0.257.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:01.724 [error] <0.237.0> Supervisor backend_sup had child pa_control_port started with pa_control_port:start_link() at <0.239.0> exit with reason normal in context shutdown_error
+2018-06-09 15:46:01.724 [error] <0.237.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.238.0> exit with reason normal in context shutdown_error

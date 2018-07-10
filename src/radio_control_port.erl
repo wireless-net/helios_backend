@@ -18,27 +18,38 @@
 
 -module(radio_control_port).
 
--export([open/2,close/0,init/4]).
+-export([open/0,close/0,init/3]).
 
 -export([   set_band/1
             ,get_band/0
             ,set_freq/1
             ,get_freq/0
-            % ,set_ptt/1
-            % ,get_ptt/0
+            ,set_chan/1
+            ,get_chan/0
+            ,set_ptt/1
+            ,get_ptt/0
             ,set_mode/1
             ,get_mode/0
-            ,tx/1
+            ,rf_switch/1
             ,tuner/1
+            ,set_control_port/1
         ]).
 
 -export([start_link/0]).
 
+%% helper to make it easier and enforce only valid values
+set_control_port(kx3_control_port) ->
+    radio_db:write_config(radio_control_port, kx3_control_port);
+set_control_port(codan_control_port) ->
+    radio_db:write_config(radio_control_port, codan_control_port);    
+set_control_port(none) ->
+    radio_db:write_config(radio_control_port, none).
+
 start_link() ->
-    Pid = open(none,none),
+    Pid = open(),
     {ok, Pid}.
 
-open(Device, Rate) ->
+open() ->
     %% load the control port
     EnabledRadioPort = try radio_db:read_config(radio_control_port) of
                         EnabledRadio -> EnabledRadio
@@ -47,10 +58,13 @@ open(Device, Rate) ->
                     end,    
     case EnabledRadioPort of
         kx3_control_port ->
-            spawn_link(?MODULE, init, [op, lists:concat([code:priv_dir(helios_backend),"/kx3_control_port"]), Device, Rate]);
+            spawn_link(?MODULE, init, [op, lists:concat([code:priv_dir(helios_backend),"/kx3_control_port"]), []]);
+        codan_control_port ->
+            %% FIXME: just hardcoding the can interface name for now
+            spawn_link(?MODULE, init, [op, lists:concat([code:priv_dir(helios_backend),"/codan_control_port"]), ["slcan0"]]);
         _ ->
             lager:warning("No supported Radio control port is configured, Radio control disabled"),
-            spawn_link(?MODULE, init, [nop, none, none, none])
+            spawn_link(?MODULE, init, [nop, none, none])
         %% ADD OTHER RADIO TYPES HERE
         %% IF CALLED WITH UNSUPPORTED, IT BECOMES A NOP
     end.
@@ -75,13 +89,32 @@ get_freq() ->
     {ok, <<Freq:32/unsigned-little-integer>>} = call_port({get_freq, <<>>, 4}),
     Freq.
 
+set_chan(Chan) ->
+    ChanBin = <<Chan:32/unsigned-little-integer>>,
+    call_port({set_chan, ChanBin, size(ChanBin)}).
+
+get_chan() ->
+    {ok, <<Chan:32/unsigned-little-integer>>} = call_port({get_chan, <<>>, 4}),
+    Chan.
+
+set_ptt(true) ->
+    set_ptt(on);
+set_ptt(false) ->
+    set_ptt(off);
+set_ptt(OnOff) ->
+    radio_control_proc ! {ptt, self(), OnOff},
+    receive
+        { radio_control_proc, Result } ->
+            Result
+    end.    
+
 % set_ptt(Ptt) ->
 %     PttBin = <<Ptt:32/unsigned-little-integer>>,
 %     call_port({set_ptt, PttBin, size(PttBin)}).
 
-% get_ptt() ->
-%     {ok, <<Ptt:32/unsigned-little-integer>>} = call_port({get_ptt, <<>>, 4}),
-%     Ptt.
+get_ptt() ->
+    {ok, <<Ptt:32/unsigned-little-integer>>} = call_port({get_ptt, <<>>, 4}),
+    Ptt.
 
 set_mode(Mode) ->
     ModeBin = <<Mode:32/unsigned-little-integer>>,
@@ -91,8 +124,16 @@ get_mode() ->
     {ok, <<Ptt:32/unsigned-little-integer>>} = call_port({get_mode, <<>>, 4}),
     Ptt.
 
-tx(OnOff) ->
-    radio_control_proc ! {tx, self(), OnOff},
+rf_switch(true) ->
+    rf_switch(on);
+rf_switch(false) ->
+    rf_switch(off);
+rf_switch(1) ->
+    rf_switch(on);
+rf_switch(0) ->
+    rf_switch(off);
+rf_switch(OnOff) ->
+    radio_control_proc ! {rf_switch, self(), OnOff},
     receive
         { radio_control_proc, Result } ->
             Result
@@ -112,11 +153,12 @@ call_port(Msg) ->
             Result
     end.
 
-init(nop, _, _, _) ->
+init(nop, _, _) ->
+    lager:info("starting in nop mode"),
     register(radio_control_proc, self()),
     process_flag(trap_exit, true),
     loop(nop);   
-init(op, ExtPrg, _Device, _Rate) ->
+init(op, ExtPrg, Args) ->
     register(radio_control_proc, self()),
     process_flag(trap_exit, true),
 
@@ -143,7 +185,7 @@ init(op, ExtPrg, _Device, _Rate) ->
     ok = gpio:write(Tunerctl, 0),
     
     % Port = open_port({spawn_executable, ExtPrg}, [{args, [Device, integer_to_list(Rate)]}, {packet, 2}, use_stdio,binary]),
-    Port = open_port({spawn_executable, ExtPrg}, [{args, []}, {packet, 2}, use_stdio, binary, exit_status]),
+    Port = open_port({spawn_executable, ExtPrg}, [{args, Args}, {packet, 2}, use_stdio, binary, exit_status]),
     loop({Port, Rfswctl, Pttctl, Tunerctl}).
 
 %% The radio_control_proc process loop (No-OP version, when no hardware connected)
@@ -152,11 +194,14 @@ loop(nop) ->
         {call, Caller, _Msg} ->
             Caller ! {radio_control_proc, {ok, nop}},
             loop(nop);
-        {tx, Caller, _} ->
-            Caller ! {radio_control_proc, ok},           
+        {rf_switch, Caller, Val} ->
+            Caller ! {radio_control_proc, {ok,Val}},           
             loop(nop);
-        {tuner, Caller, _} ->
-            Caller ! {radio_control_proc, ok},                 
+        {ptt, Caller, Val} ->
+            Caller ! {radio_control_proc, {ok,Val}},
+            loop(nop);
+        {tuner, Caller, Val} ->
+            Caller ! {radio_control_proc, {ok, Val}},                 
             loop(nop);            
         stop ->
             exit(normal);
@@ -173,7 +218,7 @@ loop(nop) ->
 loop({Port, Rfswctl, Pttctl, Tunerctl}) ->
     receive
         {call, Caller, Msg} ->
-            % lager:debug("got call, calling port..."),
+            lager:debug("got call, calling port... ~p", [Msg]),
             Port ! {self(), {command, encode(Msg)}},
             % lager:debug("waiting for result"),
             receive
@@ -191,18 +236,33 @@ loop({Port, Rfswctl, Pttctl, Tunerctl}) ->
 		      erlang:error(port_timeout)
             end,
             loop({Port, Rfswctl, Pttctl, Tunerctl});
-        {tx, Caller, on} ->
-            %% set RF switch to transmitter
-            ok = gpio:write(Rfswctl, 1),
+        {Port, {data, <<1:16/unsigned-little-integer,Data/binary>>}} ->
+            <<PttState:32/unsigned-little-integer>> = Data,
+            %% set RF switch accordingly
+            lager:debug("New PTT State ~p", [PttState]),
+            ok = gpio:write(Rfswctl, PttState),
+            loop({Port, Rfswctl, Pttctl, Tunerctl});
+        {ptt, Caller, on} ->
             %% set transmitter PTT to ON
             ok = gpio:write(Pttctl, 1),        
+
             Caller ! {radio_control_proc, {ok, on}},           
             loop({Port, Rfswctl, Pttctl, Tunerctl});
-        {tx, Caller, off} ->
+        {ptt, Caller, off} ->
             %% Ensure PTT is off
             ok = gpio:write(Pttctl, 0),
-            %% Ensure RF switch is set to RX
+            Caller ! {radio_control_proc, {ok, off}},                 
+            loop({Port, Rfswctl, Pttctl, Tunerctl});
+        {rf_switch, Caller, on} ->
+            %% set RF switch to transmitter
+            ok = gpio:write(Rfswctl, 1),
+
+            Caller ! {radio_control_proc, {ok, on}},           
+            loop({Port, Rfswctl, Pttctl, Tunerctl});
+        {rf_switch, Caller, off} ->
+            %% set RF switch to RX
             ok = gpio:write(Rfswctl, 0),
+
             %% XXX FIXME: get this outta here!!!
             %% Set tuner to scan mode
             %% For SG230, this means toggling the reset line.
@@ -269,4 +329,9 @@ encode({get_ptt, _Data, Len}) ->
 encode({set_mode, Data, Len}) ->
     [<<7:16/unsigned-little-integer>>, <<Len:16/unsigned-little-integer>>, <<Data/binary>>];
 encode({get_mode, _Data, Len}) ->
-    [<<8:16/unsigned-little-integer>>, <<Len:16/unsigned-little-integer>> ].
+    [<<8:16/unsigned-little-integer>>, <<Len:16/unsigned-little-integer>> ];
+encode({set_chan, Data, Len}) ->
+    [<<9:16/unsigned-little-integer>>, <<Len:16/unsigned-little-integer>>, <<Data/binary>>];
+encode({get_chan, _Data, Len}) ->
+    [<<10:16/unsigned-little-integer>>, <<Len:16/unsigned-little-integer>> ].
+    

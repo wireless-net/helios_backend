@@ -22,6 +22,7 @@
 -export([init/3, handle/2, terminate/3]).
 -export([websocket_init/3, websocket_handle/3, websocket_info/3, websocket_terminate/3 ]).
 -export([build_response/1]).
+% -export([radio_control_port_set_mode/1,radio_control_port_set_freq/1,pa_control_port_set_freq/1]).
 
 -include("radio.hrl").
 
@@ -48,6 +49,33 @@ build_response([nothing|Tail],Response) ->
 build_response([H|Tail], Response) ->
     build_response(Tail, [H|Response]).
 
+%%
+%% Decided to remove this stuff, so main radio can operate independently of RX
+%% 
+% radio_control_port_set_mode(Mode) ->
+%     {ok, _Ret3} = radio_control_port:set_mode(Mode),
+%     ok.
+
+% radio_control_port_set_freq(Freq) ->
+%     {ok, _Ret2} = radio_control_port:set_freq(Freq),
+%     ok.
+
+% pa_control_port_set_freq(Freq) ->
+%     {ok, _Ret2} = pa_control_port:set_freq(Freq),
+%     ok.
+
+
+% spawn_radio_control_port_set_mode(Mode) ->
+%     _Pid = spawn(backend_handler, radio_control_port_set_mode, [Mode]),
+%     ok.
+
+% spawn_radio_control_port_set_freq(Freq) ->
+%     _Pid = spawn(backend_handler, radio_control_port_set_freq, [Freq]),
+%     ok.
+
+% spawn_pa_control_port_set_freq(Freq) ->
+%     _Pid = spawn(backend_handler, pa_control_port_set_freq, [Freq]),
+%     ok.
 %%
 %% Fire off all contacts to control device websocket that are within the last 24 hours
 %%
@@ -77,51 +105,23 @@ websocket_handle({text, Msg}, Req, State) ->
     Decoded = jsx:decode(Msg), 
     {<<"action">>, Action} = lists:keyfind(<<"action">>, 1, Decoded),
     Response = case Action of
-                   <<"fnctrl">> ->
-                       %% function control command (always handled as a complete set)
-                    %    {<<"rx">>, Rx} = lists:keyfind(<<"rx">>, 1, Decoded),
-                    %    {<<"rxmode">>, RxMode} = lists:keyfind(<<"rxmode">>, 1, Decoded),
-                    %    {<<"rxspec">>, RxSpec} = lists:keyfind(<<"rxspec">>, 1, Decoded),
-                    %    {<<"tx">>, Tx} = lists:keyfind(<<"tx">>, 1, Decoded),
-                    %    {<<"txmode">>, TxMode} = lists:keyfind(<<"txmode">>, 1, Decoded),
-                    %    {<<"txspec">>, TxSpec} = lists:keyfind(<<"txspec">>, 1, Decoded),
-
-                       %% NOTE: direct control of ALE TX ENABLE not allowed via this interface 
-                       %% #define FNCTRL_ALE_TX_ENABLE 0x01000000 // control bits which may not be used in hardware
-                       %FnctrlWord = <<0:2,TxSpec:1,TxMode:1,Tx:1,RxSpec:1,RxMode:1,Rx:1, 0:8, 0:8, 16#F0:8>>,
-
+                    <<"fnctrl">> ->
                        {{IP, _Port}, _Req2} = cowboy_req:peer(Req),
-                       %% lager:info("Client Addr=~p FnctrlWord=~p", [IP,FnctrlWord]),
-
-                       %% ok = frontend_port:claddr(IP), %% set the client address for real-time audio streaming
-                       %% lager:warning("not setting claddr"),
                        audio_server_proc ! {hmi_addr, IP},
-
-                        % ok = frontend_port:claddr({127,0,0,1}), %% send to localhost where gnuradio will recieve it
-
-                    %    lager:debug("not setting fnctrl"),
-                        % ok = frontend_port:fnctrl(FnctrlWord), %% set initial settings
-                        % ok = ale:fnctrl(FnctrlWord), %% tell ALE datalink about current settings
                        build_response([{action, <<"fnctrl">>}, {response,<<"ok">>}]);
-                   <<"modemctrl">> ->
-                       %% modem control command (always handled as a complete set)
+                    <<"modemctrl">> ->
                        TxGainResult = case lists:keyfind(<<"txgain">>, 1, Decoded) of
                                           {<<"txgain">>, TxGain} ->
                                               TxGainWord = <<TxGain:32/unsigned-little-integer>>,
                                               {atomic, ok} = radio_db:write_config("default_tx_gain", TxGainWord),
                                               lager:info("wrote default TX gain to DB"),
-                                              %% set immediately because this is the default gain for non-modem audio stream
-                                                % ok = frontend_port:set_txgain(TxGainWord),
                                               lager:debug("not setting txgain in HW"),
-
                                               {txgain, TxGain};
                                           false -> nothing
                                       end,
                        AleTxGainResult = case lists:keyfind(<<"aletxgain">>, 1, Decoded) of
                                              {<<"aletxgain">>, AleTxGain} ->
                                                  AleTxGainWord = <<AleTxGain:32/unsigned-little-integer>>,
-                                                % ok = frontend_port:set_aletxgain(AleTxGainWord),
-
                                                  {atomic, ok} = radio_db:write_config("ale_tx_gain", AleTxGainWord),
                                                  lager:info("wrote ALE TX gain to DB"),
                                                  {aletxgain, AleTxGain};
@@ -132,10 +132,7 @@ websocket_handle({text, Msg}, Req, State) ->
                                               RxGainWord = <<RxGain:32/unsigned-little-integer>>,
                                               {atomic, ok} = radio_db:write_config("default_rx_gain", RxGainWord),
                                               lager:info("wrote default RX gain to DB"),     
-                                              %% set immediately because this is the default gain for non-modem audio stream                                   
-                                                % ok = frontend_port:set_rxgain(RxGainWord),
                                               lager:debug("not setting rxgain in HW"),
-
                                               {rxgain, RxGain};
                                           false -> nothing
                                       end,            
@@ -145,28 +142,13 @@ websocket_handle({text, Msg}, Req, State) ->
                        {<<"freq">>, Freq} = lists:keyfind(<<"freq">>, 1, Decoded),
                        {<<"mode">>, Mode} = lists:keyfind(<<"mode">>, 1, Decoded),
                        {<<"ptt">>, Ptt} = lists:keyfind(<<"ptt">>, 1, Decoded),
-                                                % lager:info("Get Band=~p Freq=~p Mode=~p Ptt=~p", [Band,Freq,Mode,Ptt]),
                        jsx:encode([{action, <<"radioctrl_get">>}, {response,"ok"},
                                    {fband,Band}, {freq,Freq}, {mode,Mode}, {ptt,Ptt}]);
                    <<"radioctrl_set">> ->
-                    %    BandResult = case lists:keyfind(<<"fband">>, 1, Decoded) of
-                    %                     {<<"fband">>, Band} ->
-                    %                         lager:debug("Set Band=~p", [Band]),                
-                    %                         % {ok, _Ret1} = radio_control_port:set_band(Band),
-                    %                         % {ok, _Ret1} = pa_control_port:set_band(Band),
-                    %                         BandCmdType = <<"BN">>,
-                    %                         BandCmdTerm = <<";">>,
-                    %                         BandBin = list_to_binary(integer_to_list(Band)),
-                    %                         BandCmd = << BandCmdType/binary, BandBin/binary, BandCmdTerm/binary  >>,
-                    %                         message_server_proc ! {cmd, BandCmd},
-                    %                         {fband, Band};
-                    %                     false -> nothing
-                    %                 end,
                        FreqResult = case lists:keyfind(<<"freq">>, 1, Decoded) of
                                         {<<"freq">>, Freq} ->
-                                            % lager:debug("Set Freq=~p", [Freq]),
-                                            {ok, _Ret2} = radio_control_port:set_freq(Freq),
-                                            {ok, _Ret2} = pa_control_port:set_freq(Freq),
+                                            % ok = spawn_radio_control_port_set_freq(Freq),
+                                            % ok = spawn_pa_control_port_set_freq(Freq),
                                             FreqCmdType = <<"FA">>,
                                             FreqCmdTerm = <<";">>,
                                             FreqBin = list_to_binary(integer_to_list(Freq)),
@@ -178,20 +160,18 @@ websocket_handle({text, Msg}, Req, State) ->
                                     end,
                        ModeResult = case lists:keyfind(<<"mode">>, 1, Decoded) of
                                         {<<"mode">>, Mode} ->
-                                                % lager:warning("Set Mode=~p", [Mode]),
                                             ModeCmdType = <<"MD">>,
                                             ModeCmdTerm = <<";">>,
                                             ModeBin = list_to_binary(integer_to_list(Mode)),
                                             ModeCmd = << ModeCmdType/binary, ModeBin/binary, ModeCmdTerm/binary  >>,
                                             message_server_proc ! {cmd, ModeCmd},
-                                            {ok, _Ret3} = radio_control_port:set_mode(Mode),
+                                            % ok = spawn_radio_control_port_set_mode(Mode),
                                             {mode,Mode};
                                         false -> nothing
                                     end,
                        PttResult = case lists:keyfind(<<"ptt">>, 1, Decoded) of
                                        {<<"ptt">>, Ptt} ->
                                            lager:debug("NOT Set Ptt=~p", [Ptt]),
-                                            % {ok, _Ret4} = radio_control_port:set_ptt(Ptt),
                                            {ptt,Ptt};
                                        false -> nothing
                                    end,

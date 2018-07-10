@@ -1566,3 +1566,155 @@
 2018-04-27 22:20:55.875 [error] <0.272.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.273.0> exit with reason normal in context shutdown_error
 2018-04-27 22:20:55.876 [info] <0.271.0>@audio_server:loop:61 audio server terminated for reason: normal
 2018-04-27 22:20:55.876 [info] <0.270.0>@message_server:loop:70 Message server terminated for reason: normal
+2018-04-30 22:05:21.688 [notice] <0.81.0>@lager_file_backend:131 Changed loglevel of log/console.log to info
+2018-04-30 22:05:21.774 [info] <0.33.0> Application mnesia started on node backend@iMac
+2018-04-30 22:05:21.782 [info] <0.33.0> Application ranch started on node backend@iMac
+2018-04-30 22:05:21.805 [info] <0.33.0> Application crypto started on node backend@iMac
+2018-04-30 22:05:21.807 [info] <0.33.0> Application cowlib started on node backend@iMac
+2018-04-30 22:05:21.866 [info] <0.33.0> Application cowboy started on node backend@iMac
+2018-04-30 22:05:21.918 [info] <0.235.0>@message_server:init:34 message server opened socket: #Port<0.4449>
+2018-04-30 22:05:21.919 [info] <0.236.0>@audio_server:init:34 audio server opened socket: #Port<0.4458>
+2018-04-30 22:05:21.922 [warning] <0.237.0>@radio_control_port:open:52 No supported Radio control port is configured, Radio control disabled
+2018-04-30 22:05:21.924 [warning] <0.237.0>@pa_control_port:open:67 No supported PA control port is configured, PA control disabled
+2018-04-30 22:05:21.934 [info] <0.241.0>@ale:init:305 ALE Datalink starting...
+2018-04-30 22:05:21.934 [info] <0.240.0>@dsp_port:loop:91 Port terminated for reason: shutdown
+2018-04-30 22:05:21.942 [info] <0.239.0>@pa_control_port:loop:138 Port terminated for reason: shutdown
+2018-04-30 22:05:21.942 [info] <0.238.0>@radio_control_port:loop:166 Port terminated for reason: shutdown
+2018-04-30 22:05:21.942 [info] <0.236.0>@audio_server:loop:61 audio server terminated for reason: normal
+2018-04-30 22:05:21.942 [info] <0.235.0>@message_server:loop:70 Message server terminated for reason: normal
+2018-04-30 22:05:22.017 [warning] <0.32.0> lager_error_logger_h dropped 78 messages in the last second that exceeded the limit of 50 messages/sec
+2018-04-30 22:05:22.053 [info] <0.33.0> Application inets started on node backend@iMac
+2018-04-30 22:06:41.454 [notice] <0.81.0>@lager_file_backend:131 Changed loglevel of log/console.log to info
+2018-04-30 22:06:41.536 [info] <0.33.0> Application mnesia started on node backend@iMac
+2018-04-30 22:06:41.544 [info] <0.33.0> Application ranch started on node backend@iMac
+2018-04-30 22:06:41.562 [info] <0.33.0> Application crypto started on node backend@iMac
+2018-04-30 22:06:41.564 [info] <0.33.0> Application cowlib started on node backend@iMac
+2018-04-30 22:06:41.623 [info] <0.33.0> Application cowboy started on node backend@iMac
+2018-04-30 22:06:41.668 [info] <0.235.0>@message_server:init:34 message server opened socket: #Port<0.4448>
+2018-04-30 22:06:41.670 [info] <0.236.0>@audio_server:init:34 audio server opened socket: #Port<0.4458>
+2018-04-30 22:06:41.673 [warning] <0.237.0>@radio_control_port:open:52 No supported Radio control port is configured, Radio control disabled
+2018-04-30 22:06:41.675 [warning] <0.237.0>@pa_control_port:open:67 No supported PA control port is configured, PA control disabled
+2018-04-30 22:06:41.689 [info] <0.241.0>@ale:init:305 ALE Datalink starting...
+2018-04-30 22:06:41.689 [info] <0.240.0>@dsp_port:loop:91 Port terminated for reason: shutdown
+2018-04-30 22:06:41.695 [info] <0.239.0>@pa_control_port:loop:138 Port terminated for reason: shutdown
+2018-04-30 22:06:41.695 [info] <0.238.0>@radio_control_port:loop:166 Port terminated for reason: shutdown
+2018-04-30 22:06:41.696 [info] <0.236.0>@audio_server:loop:61 audio server terminated for reason: normal
+2018-04-30 22:06:41.696 [info] <0.235.0>@message_server:loop:70 Message server terminated for reason: normal
+2018-05-10 09:04:19.362 [notice] <0.81.0>@lager_file_backend:131 Changed loglevel of log/console.log to info
+2018-05-10 09:04:19.472 [info] <0.33.0> Application mnesia started on node backend@iMac
+2018-05-10 09:04:19.479 [info] <0.33.0> Application ranch started on node backend@iMac
+2018-05-10 09:04:19.484 [info] <0.33.0> Application crypto started on node backend@iMac
+2018-05-10 09:04:19.485 [info] <0.33.0> Application cowlib started on node backend@iMac
+2018-05-10 09:04:19.539 [info] <0.33.0> Application cowboy started on node backend@iMac
+2018-05-10 09:04:19.572 [info] <0.235.0>@message_server:init:34 message server opened socket: #Port<0.4448>
+2018-05-10 09:04:19.573 [info] <0.236.0>@audio_server:init:34 audio server opened socket: #Port<0.4458>
+2018-05-10 09:04:19.595 [warning] <0.237.0>@radio_control_port:open:59 No supported Radio control port is configured, Radio control disabled
+2018-05-10 09:04:19.597 [warning] <0.237.0>@pa_control_port:open:67 No supported PA control port is configured, PA control disabled
+2018-05-10 09:04:19.628 [info] <0.241.0>@ale:init:335 ALE Datalink starting...
+2018-05-10 09:04:33.605 [info] <0.240.0>@dsp_port:loop:91 Port terminated for reason: shutdown
+2018-05-10 09:04:33.619 [warning] <0.32.0> lager_error_logger_h dropped 76 messages in the last second that exceeded the limit of 50 messages/sec
+2018-05-10 09:04:33.619 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.240.0> exit with reason normal in context shutdown_error
+2018-05-10 09:04:33.619 [info] <0.239.0>@pa_control_port:loop:138 Port terminated for reason: shutdown
+2018-05-10 09:04:33.619 [info] <0.238.0>@radio_control_port:loop:173 Port terminated for reason: shutdown
+2018-05-10 09:04:33.619 [error] <0.237.0> Supervisor backend_sup had child pa_control_port started with pa_control_port:start_link() at <0.239.0> exit with reason normal in context shutdown_error
+2018-05-10 09:04:33.619 [error] <0.237.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.238.0> exit with reason normal in context shutdown_error
+2018-05-10 09:04:33.619 [info] <0.236.0>@audio_server:loop:61 audio server terminated for reason: normal
+2018-05-10 09:04:33.620 [info] <0.235.0>@message_server:loop:70 Message server terminated for reason: normal
+2018-05-25 15:31:32.371 [notice] <0.81.0>@lager_file_backend:131 Changed loglevel of log/console.log to info
+2018-05-25 15:31:32.461 [info] <0.33.0> Application mnesia started on node backend@iMac
+2018-05-25 15:31:32.469 [info] <0.33.0> Application ranch started on node backend@iMac
+2018-05-25 15:31:32.488 [info] <0.33.0> Application crypto started on node backend@iMac
+2018-05-25 15:31:32.490 [info] <0.33.0> Application cowlib started on node backend@iMac
+2018-05-25 15:31:32.548 [info] <0.33.0> Application cowboy started on node backend@iMac
+2018-05-25 15:31:32.601 [info] <0.235.0>@message_server:init:34 message server opened socket: #Port<0.4448>
+2018-05-25 15:31:32.603 [info] <0.236.0>@audio_server:init:34 audio server opened socket: #Port<0.4458>
+2018-05-25 15:31:32.622 [warning] <0.237.0>@radio_control_port:open:59 No supported Radio control port is configured, Radio control disabled
+2018-05-25 15:31:32.623 [warning] <0.237.0>@pa_control_port:open:67 No supported PA control port is configured, PA control disabled
+2018-05-25 15:31:32.681 [info] <0.241.0>@ale:init:358 ALE Datalink starting...
+2018-05-25 15:31:33.280 [warning] <0.240.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4495>,{exit_status,255}}
+2018-05-25 15:31:33.280 [info] <0.240.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-05-25 15:31:33.304 [warning] <0.32.0> lager_error_logger_h dropped 76 messages in the last second that exceeded the limit of 50 messages/sec
+2018-05-25 15:31:33.304 [error] emulator Error in process <0.240.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:33.304 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.240.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:33.722 [warning] <0.253.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4947>,{exit_status,139}}
+2018-05-25 15:31:33.722 [info] <0.253.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-05-25 15:31:33.722 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.253.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:33.722 [error] emulator Error in process <0.253.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:34.143 [warning] <0.254.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4948>,{exit_status,255}}
+2018-05-25 15:31:34.143 [info] <0.254.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-05-25 15:31:34.143 [error] emulator Error in process <0.254.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:34.143 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.254.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:34.570 [warning] <0.255.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4949>,{exit_status,255}}
+2018-05-25 15:31:34.570 [info] <0.255.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-05-25 15:31:34.570 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.255.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:34.570 [error] emulator Error in process <0.255.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35.000 [warning] <0.256.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4950>,{exit_status,255}}
+2018-05-25 15:31:35.000 [info] <0.256.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-05-25 15:31:35.000 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.256.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:35.000 [error] emulator Error in process <0.256.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35.427 [warning] <0.257.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4951>,{exit_status,255}}
+2018-05-25 15:31:35.427 [info] <0.257.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-05-25 15:31:35.427 [error] emulator Error in process <0.257.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason reached_max_restart_intensity in context shutdown
+2018-05-25 15:31:35.428 [info] <0.239.0>@pa_control_port:loop:138 Port terminated for reason: shutdown
+2018-05-25 15:31:35.428 [info] <0.238.0>@radio_control_port:loop:173 Port terminated for reason: shutdown
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child pa_control_port started with pa_control_port:start_link() at <0.239.0> exit with reason normal in context shutdown_error
+2018-05-25 15:31:35.428 [info] <0.236.0>@audio_server:loop:61 audio server terminated for reason: shutdown
+2018-05-25 15:31:35.428 [error] <0.237.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.238.0> exit with reason normal in context shutdown_error
+2018-05-25 15:31:35.428 [info] <0.235.0>@message_server:loop:70 Message server terminated for reason: shutdown
+2018-05-25 15:31:35.428 [info] <0.33.0> Application backend exited with reason: shutdown
+2018-06-09 15:45:54.568 [notice] <0.81.0>@lager_file_backend:131 Changed loglevel of log/console.log to info
+2018-06-09 15:45:54.651 [info] <0.33.0> Application mnesia started on node backend@iMac
+2018-06-09 15:45:54.654 [info] <0.33.0> Application ranch started on node backend@iMac
+2018-06-09 15:45:54.658 [info] <0.33.0> Application crypto started on node backend@iMac
+2018-06-09 15:45:54.659 [info] <0.33.0> Application cowlib started on node backend@iMac
+2018-06-09 15:45:54.706 [info] <0.33.0> Application cowboy started on node backend@iMac
+2018-06-09 15:45:54.758 [info] <0.235.0>@message_server:init:34 message server opened socket: #Port<0.4448>
+2018-06-09 15:45:54.760 [info] <0.236.0>@audio_server:init:34 audio server opened socket: #Port<0.4458>
+2018-06-09 15:45:54.779 [warning] <0.237.0>@radio_control_port:open:59 No supported Radio control port is configured, Radio control disabled
+2018-06-09 15:45:54.781 [warning] <0.237.0>@pa_control_port:open:67 No supported PA control port is configured, PA control disabled
+2018-06-09 15:45:54.872 [info] <0.241.0>@ale:init:358 ALE Datalink starting...
+2018-06-09 15:45:55.074 [warning] <0.32.0> lager_error_logger_h dropped 76 messages in the last second that exceeded the limit of 50 messages/sec
+2018-06-09 15:45:55.160 [info] <0.33.0> Application inets started on node backend@iMac
+2018-06-09 15:45:59.894 [warning] <0.240.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4495>,{exit_status,255}}
+2018-06-09 15:45:59.894 [info] <0.240.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-06-09 15:45:59.894 [error] emulator Error in process <0.240.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:45:59.894 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.240.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:00.262 [warning] <0.253.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4947>,{exit_status,255}}
+2018-06-09 15:46:00.262 [info] <0.253.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-06-09 15:46:00.262 [error] emulator Error in process <0.253.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00.262 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.253.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:00.627 [warning] <0.254.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4948>,{exit_status,255}}
+2018-06-09 15:46:00.627 [info] <0.254.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-06-09 15:46:00.627 [error] emulator Error in process <0.254.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00.627 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.254.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:00.994 [warning] <0.255.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4949>,{exit_status,255}}
+2018-06-09 15:46:00.994 [info] <0.255.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-06-09 15:46:00.994 [error] emulator Error in process <0.255.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00.994 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.255.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:01.356 [warning] <0.256.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4950>,{exit_status,255}}
+2018-06-09 15:46:01.356 [info] <0.256.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-06-09 15:46:01.356 [error] emulator Error in process <0.256.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:01.356 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.256.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:01.723 [warning] <0.257.0>@dsp_port:loop:97 Port got unhandled message {#Port<0.4951>,{exit_status,255}}
+2018-06-09 15:46:01.723 [info] <0.257.0>@dsp_port:loop:91 Port terminated for reason: normal
+2018-06-09 15:46:01.723 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason no match of right hand value undefined in dsp_port:loop/1 line 92 in context child_terminated
+2018-06-09 15:46:01.724 [error] <0.237.0> Supervisor backend_sup had child dsp_port started with dsp_port:start_link() at <0.257.0> exit with reason reached_max_restart_intensity in context shutdown
+2018-06-09 15:46:01.724 [error] emulator Error in process <0.257.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:01.724 [info] <0.239.0>@pa_control_port:loop:138 Port terminated for reason: shutdown
+2018-06-09 15:46:01.724 [error] <0.237.0> Supervisor backend_sup had child pa_control_port started with pa_control_port:start_link() at <0.239.0> exit with reason normal in context shutdown_error
+2018-06-09 15:46:01.724 [info] <0.238.0>@radio_control_port:loop:173 Port terminated for reason: shutdown
+2018-06-09 15:46:01.724 [error] <0.237.0> Supervisor backend_sup had child radio_control_port started with radio_control_port:start_link() at <0.238.0> exit with reason normal in context shutdown_error

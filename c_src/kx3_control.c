@@ -466,14 +466,14 @@ int kx3_control_init(radioif_t *rif)
 		syslog(LOG_INFO,"kx3_control: failed to open serial port\n");
 		return -1;
 	}
-	radioif_set_band = kx3_set_band;
-	radioif_get_band = kx3_get_band;
-	radioif_set_freq = kx3_set_freq;
-	radioif_get_freq = kx3_get_freq;
-	radioif_set_ptt =  kx3_set_ptt;
-	radioif_get_ptt =  kx3_get_ptt;
-	radioif_set_mode =  kx3_set_mode;
-	radioif_get_mode =  kx3_get_mode;
+	// radioif_set_band = kx3_set_band;
+	// radioif_get_band = kx3_get_band;
+	// radioif_set_freq = kx3_set_freq;
+	// radioif_get_freq = kx3_get_freq;
+	// radioif_set_ptt =  kx3_set_ptt;
+	// radioif_get_ptt =  kx3_get_ptt;
+	// radioif_set_mode =  kx3_set_mode;
+	// radioif_get_mode =  kx3_get_mode;
 	sleep(1); // give serial port time to fire up (seems to be needed)	
 	return 0;
 }

@@ -339,3 +339,165 @@ Error in process <0.284.0> on node backend@iMac with exit value:
      Reason:     normal
      Offender:   [{pid,<0.273.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
 
+2018-05-10 09:04:33 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.240.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-10 09:04:33 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.239.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-10 09:04:33 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.238.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:33 =ERROR REPORT====
+Error in process <0.240.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:33 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.240.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:33 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.253.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:33 =ERROR REPORT====
+Error in process <0.253.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:34 =ERROR REPORT====
+Error in process <0.254.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:34 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.254.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:34 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.255.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:34 =ERROR REPORT====
+Error in process <0.255.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.256.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:35 =ERROR REPORT====
+Error in process <0.256.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35 =ERROR REPORT====
+Error in process <0.257.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-05-25 15:31:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.257.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown
+     Reason:     reached_max_restart_intensity
+     Offender:   [{pid,<0.257.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.239.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-05-25 15:31:35 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.238.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:45:59 =ERROR REPORT====
+Error in process <0.240.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:45:59 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.240.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:00 =ERROR REPORT====
+Error in process <0.253.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.253.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:00 =ERROR REPORT====
+Error in process <0.254.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.254.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:00 =ERROR REPORT====
+Error in process <0.255.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:00 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.255.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:01 =ERROR REPORT====
+Error in process <0.256.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:01 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.256.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:01 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    child_terminated
+     Reason:     {{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+     Offender:   [{pid,<0.257.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:01 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown
+     Reason:     reached_max_restart_intensity
+     Offender:   [{pid,<0.257.0>},{id,dsp_port},{mfargs,{dsp_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:01 =ERROR REPORT====
+Error in process <0.257.0> on node backend@iMac with exit value:
+{{badmatch,undefined},[{dsp_port,loop,1,[{file,"src/dsp_port.erl"},{line,92}]}]}
+2018-06-09 15:46:01 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.239.0>},{id,pa_control_port},{mfargs,{pa_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+
+2018-06-09 15:46:01 =SUPERVISOR REPORT====
+     Supervisor: {local,backend_sup}
+     Context:    shutdown_error
+     Reason:     normal
+     Offender:   [{pid,<0.238.0>},{id,radio_control_port},{mfargs,{radio_control_port,start_link,[]}},{restart_type,permanent},{shutdown,5000},{child_type,worker}]
+

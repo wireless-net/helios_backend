@@ -3,7 +3,52 @@ HELIOS ALE Controller Updates Log
 1. fixed message char validation bug that allowed invalid sequence to break AMD messages
 2. added support for optional radio, pa, and tuner control ports to be configured
 3. update database with proper self_address and other_address memories
-4. added support for proper decode to netcalls, global allcalls, global anycalls
+4. added support for decode to netcalls, global allcalls, global anycalls
+5. LBT support for ALE signals (if using a separate transmitter)
 
 TODO:
 - support making netcalls, global allcalls, global anycalls
+
+
+FIXED: BUG: While linked this happened:
+01:29:42.614 [notice] got terminate, exiting...
+01:29:42.614 [error] gen_fsm ale in state call_linked terminated with reason: no match of right hand value [] in ale:call_linked/2 line 1985
+01:29:42.640 [info] ALE Datalink starting...
+01:29:42.640 [error] CRASH REPORT Process ale with 0 neighbours exited with reason: no match of right hand value [] in ale:call_linked/2 line 1985 in gen_fsm:terminate/7 line 559
+01:29:42.645 [error] Supervisor backend_sup had child ale started with ale:start_link() at <0.290.0> exit with reason no match of right hand value [] in ale:call_linked/2 line 1985 in context child_terminated
+ROOT CAUSE: received sounding while linked, Calling section of incoming sounding was empty (due to just TWS), and stored ToAddr was filled in, so no match.
+CORRECTION: put pattern matching into case statement so it falls into the TWS case properly
+
+BUG: while, linked, changed channel on GUI
+01:32:29.323 [notice] got terminate, exiting...
+01:32:29.324 [info] ALE Datalink starting...
+01:32:29.333 [error] gen_fsm ale in state call_linked terminated with reason: no function clause matching ale:call_linked({current_freq,14109000}, {state,<<0,0,0,0>>,none,0,0,0,"KQ6XA","K6DRS","K6DRS",3162,none,{msg_state,incomplete,idle,[],[],...},...}) line 1942
+01:32:29.334 [error] CRASH REPORT Process ale with 0 neighbours exited with reason: no function clause matching ale:call_linked({current_freq,14109000}, {state,<<0,0,0,0>>,none,0,0,0,"KQ6XA","K6DRS","K6DRS",3162,none,{msg_state,incomplete,idle,[],[],...},...}) line 1942 in gen_fsm:terminate/7 line 559
+01:32:29.339 [error] Supervisor backend_sup had child ale started with ale:start_link() at <0.550.0> exit with reason no function clause matching ale:call_linked({current_freq,14109000}, {state,<<0,0,0,0>>,none,0,0,0,"KQ6XA","K6DRS","K6DRS",3162,none,{msg_state,incomplete,idle,[],[],...},...}) line 1942 in context child_terminated
+01:32:29.639 [debug] NOT Set Ptt=0
+ROOT CAUSE: call_linked state doesn't know how to handle user frequency changes.
+    ==> check with BC on how a controller should handle user QSY? Should it terminate the call?
+
+FIXED: BUG: while reporting saw this:
+[01:38:11][ 10.1 MHz ] TO [K6DRS][TIS] De [KQ6XA] QSYBER 29 SN 13 SMETER4
+ROOT CAUSE: there was no space after AMD before BER string begins!
+CORRECTION: Added space.
+
+PARTIALLY FIXED: BUG: saw KA2UFO come in while linking with Bonnie, resulting it my controlling thinking he was the caller
+ROOT CAUSE: words can be pushed up to the upper datalink layer interleaved from multiple stations
+    Words must remain intact with the message they came from as a unit when delivered to the datalink.
+    BC also suggests a timer of 15 secs to ignore (treat as soundings) other incoming messages during handshakes.
+    Also filter on freq, and give priority to ind call, net, any, all.
+        - It matters what freq they come in on, because the controller must know that it should change TX freq
+          answer.
+
+BUG: receiving call on a freq doesn't result in tuning transmitter to that freq
+BUG: not enough channels, need to support all main channels (like 18-20) so it's possibly to QSY to HFL channel
+
+BUG: when controller changes frequency of transmitter it must also set mode (usb,lsb)!!
+
+FIXED: BUG: end of frame detection was waiting too long (> 2X TRW time). Corrected to 1 TRW time per explanation in A.5.5.3.2 of MIL-STD-188-141B. End of frame is detected by starting a TRW timeout upon end of conclusion, and no further words, or reading up to 5 words following TIS/TWS. At the decoder layer, this means we should use TRW + some wiggle room. Codan seems to use around 500ms, so this will be used as a reasonable value. Also now correctly works with our 2g/4g HFR soundings.
+
+
+BUG: for Tony's setup?  KA2UFO: 	[04:53:25][ 7.1 MHz ] TO [N4IWI KM4 KM4ALP KM5][TIS] De [K6D] 	BER 19 SN 04 SMETER1
+when this happened I had sent two calls first to N4IWI, then to KM4ALP with only a few seconds apart

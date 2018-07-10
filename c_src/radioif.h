@@ -24,13 +24,13 @@ typedef struct radioif {
 	/* any other state vars here */
 } radioif_t;
 
-int (*radioif_set_band)(radioif_t *, int);
-int (*radioif_get_band)(radioif_t *, int *);
-int (*radioif_set_freq)(radioif_t *, int);
-int (*radioif_get_freq)(radioif_t *, int *);
-int (*radioif_set_ptt)(radioif_t *, int);
-int (*radioif_get_ptt)(radioif_t *, int *);
-int (*radioif_set_mode)(radioif_t *, int);
-int (*radioif_get_mode)(radioif_t *, int *);
+// int (*radioif_set_band)(radioif_t *, int);
+// int (*radioif_get_band)(radioif_t *, int *);
+// int (*radioif_set_freq)(radioif_t *, int);
+// int (*radioif_get_freq)(radioif_t *, int *);
+// int (*radioif_set_ptt)(radioif_t *, int);
+// int (*radioif_get_ptt)(radioif_t *, int *);
+// int (*radioif_set_mode)(radioif_t *, int);
+// int (*radioif_get_mode)(radioif_t *, int *);
 
 #endif

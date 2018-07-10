@@ -55,6 +55,7 @@ create_database(OwnAddr) ->
 	{atomic, ok} = radio_db:write_hflink_channels(),
 	%% OWN: 	
 	{atomic, ok} = radio_db:write_self_address(OwnAddr, own, none, [], [all], default),
+	{atomic, ok} = radio_db:write_self_address("?@?", own, none, [], [all], default),	
 	%% NULL:	
 	{atomic, ok} = radio_db:write_self_address("", null, none, [], [], default), 
 	%% HFR:		
@@ -68,7 +69,11 @@ create_database(OwnAddr) ->
 	%% GLOBANY:	
 	{atomic, ok} = radio_db:write_self_address("@@?", global_anycall, OwnAddr, [random], [all], default),
 	{atomic, ok} = radio_db:write_config(current_freq, 5357000),
-	{atomic, ok} = radio_db:write_config(hflink_reporting, false),	
+	{atomic, ok} = radio_db:write_config(hflink_reporting, false),
+	{atomic, ok} = radio_db:write_config(radio_control_port, none),
+	{atomic, ok} = radio_db:write_config(transmit_control, none),
+    {atomic, ok} = radio_db:write_config(tuner_control, none),
+    {atomic, ok} = radio_db:write_config(pa_control, none),
 	ok.
 
 write_config(Name, Value) ->
@@ -143,37 +148,23 @@ find_auto_channels() ->
 
 write_hflink_channels() ->
 	write_channel(1,	1843000,	0, <<"USB">>,	<<"DATA/VOICE">>, 	<<"International">>, 			<<"01AHFN">>,	<<"Auto">>),
-	write_channel(9,	1996000,	0, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"01BHFL">>,	<<"Attended">>),
-	write_channel(10, 	1822000, 	0, <<"USB">>, 	<<"DATA/VOICE">>,	<<"Aux/Regional">>, 			<<"01CHFL">>, 	<<"Attended">>),
-	write_channel(11, 	1909000, 	0, <<"USB">>, 	<<"DATA/VOICE">>, 	<<"Aux/Regional">>, 			<<"01DHFL">>, 	<<"Attended">>),
-
-	write_channel(2,	3596000,	1, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"03AHFN">>,	<<"Auto">>),
-	write_channel(12,	3791000,	1, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"03BHFL">>, 	<<"Attended">>),
-	write_channel(13,	3996000,	1, <<"USB">>,	<<"VOICE">>, 		<<"Regional">>, 				<<"03CHFL">>, 	<<"Attended">>),
-	write_channel(14, 	3522000,	1, <<"USB">>,	<<"DATA">>,			<<"Aux/Regional">>,				<<"03DHFL">>, 	<<"Attended">>),
-	write_channel(15, 	3617000,	1, <<"USB">>,	<<"DATA">>, 		<<"Aux/Regional">>, 			<<"03EHFN">>, 	<<"Attended">>),
-
-	write_channel(3,	5357000,	2, <<"USB">>,	<<"DATA/VOICE">>, 	<<"Primary Intl.">>, 			<<"05AHFL">>, 	<<"Auto">>),
-	write_channel(16,	5360000,	2, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"05BHFL">>, 	<<"Attended">>),
-	write_channel(17,	5371500,	2, <<"USB">>,	<<"VOICE">>, 		<<"Regional">>, 				<<"05CHFL">>, 	<<"Attended">>),
-	
-	write_channel(4,	7102000,	3, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"07AHFN">>,	<<"Auto">>),
-	write_channel(18,	7185500,	3, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"07BHFL">>, 	<<"Attended">>),
-	write_channel(19,	7296000,	3, <<"USB">>,	<<"VOICE">>,		<<"Regional">>, 				<<"07CHFL">>, 	<<"Attended">>),
-	write_channel(20, 	7049500,	3, <<"USB">>,	<<"DATA">>, 		<<"Aux/Regional">>, 			<<"07DHFN">>,	<<"Attended">>),
-
-	write_channel(5,	10145500,	4, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"10AHFN">>,	<<"Auto">>),
-	write_channel(21, 	10136500,	4, <<"USB">>,	<<"DATA/VOICE">>, 	<<"Aux/Regional">>, 			<<"10BHFL">>,	<<"Attended">>),
-
-	write_channel(6,	14109000,	5, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"14AHFN">>,	<<"Auto">>),
-	write_channel(22,	14346000,	5, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"14BHFL">>, 	<<"Attended">>),
-	write_channel(23, 	14100500,	5, <<"USB">>,	<<"DATA">>,			<<"Aux/Testing">>,				<<"14CHFN">>,	<<"Attended">>), 
-
-	write_channel(7,	18106000,	6, <<"USB">>,	<<"DATA">>,			<<"Primary Intl.">>, 			<<"18AHFN">>,	<<"Auto">>),
-	write_channel(24,	18117500,	6, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"18BHFL">>, 	<<"Attended">>),
-
-	write_channel(8,	21096000,	7, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"21AHFN">>,	<<"Auto">>),
-	write_channel(25,	21432500,	7, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"21BHFL">>, 	<<"Attended">>).
+	write_channel(2,	1996000,	0, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"01BHFL">>,	<<"Attended">>),
+	write_channel(3,	3596000,	1, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"03AHFN">>,	<<"Auto">>),
+	write_channel(4,	3791000,	1, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"03BHFL">>, 	<<"Attended">>),
+	write_channel(5,	3996000,	1, <<"USB">>,	<<"VOICE">>, 		<<"Regional">>, 				<<"03CHFL">>, 	<<"Attended">>),
+	write_channel(6,	5357000,	2, <<"USB">>,	<<"DATA/VOICE">>, 	<<"Primary Intl.">>, 			<<"05AHFL">>, 	<<"Auto">>),
+	write_channel(7,	5360000,	2, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"05BHFL">>, 	<<"Attended">>),
+	write_channel(8,	5371500,	2, <<"USB">>,	<<"VOICE">>, 		<<"Regional">>, 				<<"05CHFL">>, 	<<"Attended">>),
+	write_channel(9,	7102000,	3, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"07AHFN">>,	<<"Auto">>),
+	write_channel(10,	7185500,	3, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"07BHFL">>, 	<<"Attended">>),
+	write_channel(11,	7296000,	3, <<"USB">>,	<<"VOICE">>,		<<"Regional">>, 				<<"07CHFL">>, 	<<"Attended">>),
+	write_channel(12,	10145500,	4, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"10AHFN">>,	<<"Auto">>),
+	write_channel(13,	14109000,	5, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"14AHFN">>,	<<"Auto">>),
+	write_channel(14,	14346000,	5, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"14BHFL">>, 	<<"Attended">>),
+	write_channel(15,	18106000,	6, <<"USB">>,	<<"DATA">>,			<<"Primary Intl.">>, 			<<"18AHFN">>,	<<"Auto">>),
+	write_channel(16,	18117500,	6, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"18BHFL">>, 	<<"Attended">>),
+	write_channel(17,	21096000,	7, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"21AHFN">>,	<<"Auto">>),
+	write_channel(18,	21432500,	7, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"21BHFL">>, 	<<"Attended">>).
 
 
 	% write_channel(25, 	24926000,	<<"USB	DATA Auxiliary 24AHFN	Auto Attended

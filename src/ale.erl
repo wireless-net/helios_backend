@@ -26,17 +26,17 @@
 
 -include("radio.hrl").
 
--export([rx/1
+-export([ rx/1
         , start_link/0
-        , scanning_sound/3
-        , sound_2g4g/0
+        , gen_scanning_sound/3
+        , sound_2g4g/1
         , send_words/1
-        , sound/0
+        , sound/1
         , scanning_sound/0
-        , call/1
-        , scanning_call/1
         , call/2
         , scanning_call/2
+        , call/3
+        , scanning_call/3
         , amd/1
         , link_terminate/0
         , link_terminate/1
@@ -44,9 +44,9 @@
         , current_freq/1
         , ctrl_disconnect/0
         , gen_sound/0
-        , gen_terminate/2
+        , gen_terminate/3
         , gen_ack/2
-        , gen_call/4
+        , gen_call/5
         , char_validate38/1
         , list_validate64/1
         , amd_decode/2
@@ -57,12 +57,23 @@
         , words_to_bin/2
         , test_send_words/1
         , build_ale_address/3
-        , tune_radio/2
+        , tell_user_eot/0
+        , tune_transmitter/2
         , tune_pa/2
+        , transmitter_mode/2
         , hflink_reporting/1
+        , notify_ale_event/2
+        , spawn_amd_notify/2
+        , amd_notify/2
+        , transmit_control/2
+        , set_transmit_control/1
+        , set_tuner_control/1
+        , set_pa_control/1
+        , rx_enable/1
+        , join/2
         ]).
 
--export([rx_sound_complete/5]).
+-export([store_lqa_and_report/5]).
 
 -export([init/1
         , handle_event/3
@@ -103,7 +114,7 @@
 -define(ALE_TRW				,	392).
 -define(ALE_DATALINK_TIMEOUT,   ?ALE_TRW * 5).
 -define(ALE_DATALINK_EOF	,	3).				%% End of frame marker
--define(ALE_DATALINK_PHA	,	2).				%% Word phase marker
+-define(ALE_DATALINK_EVT	,	2).				%% Word event marker
 -define(ALE_DATALINK_EOT	,	1).				%% end of transmission marker
 -define(ALE_MAX_BER_VAL		,	30.0). 			%% PER inverse of Table A-XIII
 -define(ALE_SINAD_UNKNOWN	,	31).			%% Unknown SINAD value
@@ -115,7 +126,7 @@
 -define(ALE_TRWP			, 	0).				%% redundant word phase delay
 -define(ALE_TLD 			, 	1000).			%% late detect delay
 -define(ALE_TRD 			, 	100).			%% receiver internal latency
--define(ALE_TWRT 			,  	?ALE_TTD + ?ALE_TP + ?ALE_TLWW + ?ALE_TTA + ?ALE_TRWP + ?ALE_TLD + ?ALE_TRD).
+-define(ALE_TWRT 			,  	?ALE_TT + ?ALE_TTD + ?ALE_TP + ?ALE_TLWW + ?ALE_TTA + ?ALE_TRWP + ?ALE_TLD + ?ALE_TRD).
 -define(ALE_TWA 			,	300000). 		%% linked state idle timeout
 -define(ALE_MAX_AMD_LENGTH  ,   90).
 -define(ALE_PA_SWITCH_TIME	,   2000).
@@ -123,6 +134,10 @@
 -define(ALE_SOUNDING_PERIOD	,	60*60*1000).	%% try sounding every 60 minutes
 -define(ALE_SOUNDING_RETRY_PERIOD, 5*60*1000). 	%% if abort, retry after 5 minutes of no activity
 -define(ALE_INTER_MESSAGE_GAP,  500).           %% 500ms gap between messages
+-define(ALE_SCAN_PREAMBLE_TIME, 16000).         %% scanning call time (preamble length)
+
+%% TX message tail length to workaround soundcard latency and prevent message truncation
+-define(SOUNDCARD_LATENCY, 100).
 
 -record(msg_state, {
           status 			= incomplete,
@@ -144,8 +159,9 @@
           freq 			    = 0, 
           bad_votes 		= 0, 
           word_count 		= 0,
-          call_address	    = [],
-          reply_with_address= [],
+          other_address	    = [], %% address of other station during call/linkup
+          self_address      = [], %% self address called by other station during call/linkup
+          reply_with_address= [], %% address to reply with during call/linkup
           wait_for_reply_time=0,
           last_type		    = none,
           message_state	    = #msg_state{},
@@ -159,13 +175,14 @@
           transmit_control  = none,
           pa_control        = none,
           tuner_control     = none
+        %   wait_eof          = true %% FOR TESTING ONLY, NORMALLY SET TO TRUE!!!
          }).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-%% Load new ALE wo`d that was just received by frontend
+%% Load new ALE word that was just received by frontend
 rx(Word) ->
     gen_fsm:send_event(ale, {rx_word, Word}).
 
@@ -178,42 +195,48 @@ current_freq(Word) ->
     gen_fsm:send_event(ale, {current_freq, Word}).
 
 %% Sounding
-sound() ->
-    gen_fsm:send_event(ale, {sound}).
+sound(Frequency) ->
+    gen_fsm:send_event(ale, {sound, Frequency}).
 
 scanning_sound() ->
     gen_fsm:send_event(ale, {scanning_sound}).
 
-sound_2g4g() ->
-    gen_fsm:send_event(ale, {sound_2g4g}).
+sound_2g4g(Frequency) ->
+    gen_fsm:send_event(ale, {sound_2g4g, Frequency}).
 
-%% individual call
-call(Address) -> 
-    gen_fsm:send_event(ale, {call, string:to_upper(Address), non_scanning,[]}).
+%% individual call (this version will enventually use LQA and try each channel in order of likelyhood until connect or channels exhausted)
+call(Address, Frequency) when length(Address) =< ?ALE_MAX_ADDRESS_LEN andalso length(Address) > 0 ->
+    gen_fsm:send_event(ale, {call, string:to_upper(Address), Frequency, non_scanning,[]});
+call(_Address, _Frequency) ->
+    lager:error("Invalid length for address"),
+    error.
 
-%% individual scanning call
-scanning_call(Address) ->
-    gen_fsm:send_event(ale, {call, string:to_upper(Address), scanning,[]}).
+%% individual scanning call (this version will enventually use LQA and try each channel in order of likelyhood until connect or channels exhausted)
+scanning_call(Address, Frequency) when length(Address) =< ?ALE_MAX_ADDRESS_LEN andalso length(Address) > 0 ->
+    gen_fsm:send_event(ale, {call, string:to_upper(Address), Frequency, scanning,[]});
+scanning_call(_Address, _Frequency) ->
+    lager:error("Invalid length for address"),
+    error.
 
-%% individual call with AMD message
-call(Address, AMDMessage) when length(AMDMessage) < ?ALE_MAX_AMD_LENGTH -> 
-    gen_fsm:send_event(ale, {call, string:to_upper(Address), non_scanning, string:to_upper(AMDMessage)});
-call(_Address, _AMDMessage) ->
-    lager:error("AMD message must be less than ~p", [?ALE_MAX_AMD_LENGTH]),
+%% individual call with AMD message (this version will enventually use LQA and try each channel in order of likelyhood until connect or channels exhausted)
+call(Address, Frequency, AMDMessage) when length(AMDMessage) < ?ALE_MAX_AMD_LENGTH andalso length(Address) =< ?ALE_MAX_ADDRESS_LEN andalso length(Address) > 0 -> 
+    gen_fsm:send_event(ale, {call, string:to_upper(Address), Frequency, non_scanning, string:to_upper(AMDMessage)});
+call(_Address, _Frequency, _AMDMessage) ->
+    lager:error("Invalid length for address or AMD message"),
     error.	
 
 %% AMD message
 amd(AMDMessage) when length(AMDMessage) < ?ALE_MAX_AMD_LENGTH -> 
     gen_fsm:send_event(ale, {amd, string:to_upper(AMDMessage)});
 amd(_AMDMessage) ->
-    lager:error("AMD message must be less than ~p", [?ALE_MAX_AMD_LENGTH]),
+    lager:error("Invalid length for address or AMD message"),
     error.
 
 %% individual scanning call with AMD message
-scanning_call(Address, AMDMessage) when length(AMDMessage) < ?ALE_MAX_AMD_LENGTH ->
-    gen_fsm:send_event(ale, {call, string:to_upper(Address), scanning, string:to_upper(AMDMessage)});
-scanning_call(_Address, _AMDMessage) ->
-    lager:error("AMD message must be less than ~p", [?ALE_MAX_AMD_LENGTH]),
+scanning_call(Address, Frequency, AMDMessage) when length(AMDMessage) < ?ALE_MAX_AMD_LENGTH andalso length(Address) =< ?ALE_MAX_ADDRESS_LEN andalso length(Address) > 0 ->
+    gen_fsm:send_event(ale, {call, string:to_upper(Address), Frequency, scanning, string:to_upper(AMDMessage)});
+scanning_call(_Address, _Frequency, _AMDMessage) ->
+    lager:error("Invalid length for address or AMD message"),
     error.	
 
 %% link termination
@@ -224,7 +247,7 @@ link_terminate() ->
 link_terminate(AMDMessage) when length(AMDMessage) < ?ALE_MAX_AMD_LENGTH ->
     gen_fsm:send_event(ale, {link_terminate, string:to_upper(AMDMessage)});
 link_terminate(_AMDMessage) ->
-    lager:error("AMD message must be less than ~p", [?ALE_MAX_AMD_LENGTH]),
+    lager:error("Invalid length for address or AMD message"),
     error.	
 
 %% Tell the datalink that ALE tx completed 
@@ -243,19 +266,37 @@ hflink_reporting(false) ->
 %%
 %% Radio control TX handling
 %%
-transmit_control_tx(none, Mode) ->
+transmit_control(none, Mode) ->
     %% do nothing, no radio to control
     {ok, Mode};
-transmit_control_tx(internal, Mode) ->
+transmit_control(internal, Mode) ->
     lager:debug("radio control internal not yet implemented"),
     {ok, Mode};
-transmit_control_tx(external, Mode) ->
-    radio_control_port:tx(Mode).
+transmit_control(external, on) ->
+    radio_control_port:rf_switch(on),
+    radio_control_port:set_ptt(on);
+transmit_control(external, off) ->
+    radio_control_port:set_ptt(off),
+    timer:sleep(50), %%% <<== THIS DELAY REQUIRED TO PREVENT RF GLITCH FROM HARMING RX
+    radio_control_port:rf_switch(off).
 
-radio_control_set_freq(none, Freq) ->
-    {ok, Freq};
-radio_control_set_freq(external, Freq) ->
-    radio_control_port:set_freq(Freq).
+transmitter_mode(none, _Chan) ->
+    %% no transmitter
+    ok;
+transmitter_mode(internal, _Chan) ->
+    lager:debug("internal tune radio not implemented"),
+    ok;
+transmitter_mode(external, Chan) when Chan#channel.sideband == <<"LSB">> ->
+    {ok, _Ret3} = radio_control_port:set_mode(1),
+    ok;
+transmitter_mode(external, Chan) when Chan#channel.sideband == <<"USB">> ->
+    {ok, _Ret3} = radio_control_port:set_mode(2),
+    ok.
+
+% radio_control_set_freq(none, Freq) ->
+    % {ok, Freq};
+% radio_control_set_freq(external, Freq) ->
+    % radio_control_port:set_freq(Freq).
 
 %%
 %% Tuner control handling
@@ -274,7 +315,33 @@ pa_control_set_freq(none, Freq) ->
     {ok, Freq};
 pa_control_set_freq(external, Freq) ->
     pa_control_port:set_freq(Freq).
-    
+
+
+%%
+%% Helpers for setting transmit, pa, and tuner control
+%% makes it easier and prevents invalid values....
+%%
+set_transmit_control(external) ->
+    radio_db:write_config(transmit_control, external);
+set_transmit_control(internal) ->
+    radio_db:write_config(transmit_control, internal);
+set_transmit_control(none) ->
+    radio_db:write_config(transmit_control, none).
+
+set_tuner_control(external) ->
+    radio_db:write_config(tuner_control, external);
+set_tuner_control(internal) ->
+    radio_db:write_config(tuner_control, internal);
+set_tuner_control(none) ->
+    radio_db:write_config(tuner_control, none).
+
+set_pa_control(external) ->
+    radio_db:write_config(pa_control, external);
+set_pa_control(internal) ->
+    radio_db:write_config(pa_control, internal);
+set_pa_control(none) ->
+    radio_db:write_config(pa_control, none).
+
 %%
 %% Handle sounding timer startup
 %%
@@ -285,7 +352,15 @@ start_sounding_timer(external, Timeout) ->
 start_sounding_timer(internal, _Timeout) ->
     undefined.
 
-
+%%
+%% Helper for enabling/disabling receiver
+%%
+rx_enable(true) ->
+    RxEnable = <<"FC4026531841;">>,
+    message_server_proc ! {cmd, RxEnable};
+rx_enable(false) ->
+    RxDisable = <<"FC4026531840;">>,
+    message_server_proc ! {cmd, RxDisable}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -319,10 +394,14 @@ init([]) ->
                         end,
 
     %% just in case we're restarting after a crash
-    {ok, off} = transmit_control_tx(TransmitControlType, off),
-    {ok, scan} = tuner_control(TunerControlType, scan),
-    abort_tx(),
-    tell_user_eot(),
+    % {ok, off} = transmit_control(TransmitControlType, off),
+    % {ok, scan} = tuner_control(TunerControlType, scan),
+    
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+
+    % abort_tx(),
+    % spawn_tell_user_eot(),
 
     %% startup the sounding timer
     SndTimerRef = start_sounding_timer(TransmitControlType, ?ALE_SOUNDING_PERIOD),
@@ -332,6 +411,25 @@ init([]) ->
                         transmit_control=TransmitControlType, 
                         pa_control=PaControlType, 
                         tuner_control=TunerControlType}}.
+
+%% helper function to select between default or programmed TWRT timeout
+select_wait_for_reply_time(default) ->
+    ?ALE_TWRT;
+select_wait_for_reply_time(WaitForReplyTime) ->
+    WaitForReplyTime.
+
+%% Used to notify user control device of an ALE event
+notify_ale_event(Event, Data) ->
+    case whereis(backend_handler) of
+        undefined -> lager:info("backend_handler not registered");
+        _ ->
+            % lager:debug("~p",[[{event,Event},{data, Data}]]),
+            Msg = backend_handler:build_response([{event,Event},Data]),
+            backend_handler ! {data, Msg}
+    end.    
+
+spawn_notify_ale_event(Event, Data) ->
+    _Pid = spawn(ale, notify_ale_event, [Event, Data]).
 
 %% ------------------------------------------------------------------
 %% gen_fsm Function Definitions
@@ -349,11 +447,11 @@ idle({current_freq, Freq}, State=#state{freq_set_timer=none}) ->
     NewState = State#state{freq_set_timer=Ref},
     next_state_idle(NewState);
 idle({current_freq, Freq}, State=#state{freq_set_timer=OldRef}) ->
-    gen_fsm:cancel_timer(OldRef),
+    erlang:cancel_timer(OldRef),
     Ref = gen_fsm:send_event_after(500,{current_freq_set,Freq}),
     NewState = State#state{freq_set_timer=Ref},
     next_state_idle(NewState);
-idle({rx_word, Word}, State=#state{call_address=[], message_state=MessageState}) ->
+idle({rx_word, Word}, State=#state{other_address=[], message_state=MessageState, transmit_control=TxCtrlType}) ->
 
     NewMessageState = receive_msg(Word, MessageState),
 
@@ -403,47 +501,86 @@ idle({rx_word, Word}, State=#state{call_address=[], message_state=MessageState})
                     %% cleanup addresses / strip off the fill characters
                     To = string:strip(lists:flatten(ToAddr),right,$@),
                     From = string:strip(lists:flatten(FromAddr),right,$@),
-
                     SelfAddressMatch = radio_db:read_self_address(To),
-                    lager:debug("read_self_address returned ~p", [SelfAddressMatch]),
 
                     case SelfAddressMatch of
                         {error, not_found} ->
                             %% Not for us, just log and report
                             lager:notice("heard call not for us: logging as sound TO: ~p FROM: ~p BER: ~p", [To, From, Ber]),
                             
-                            rx_sound_complete(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
+                            spawn_store_lqa_and_report(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
 
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};
-                        {ok,{self_address,MyAddress,own,_NetMember,_NetSlot,Channels,WaitForReplyTime}} ->
+                        {ok,{self_address,MyAddress,own,_NetMember,_NetSlot,_Channels,WaitForReplyTime}} ->
                             %% Link request is for us
                             lager:notice("got call from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
 
                             %% handle other message types here
 
-                            %% send ack
-                            AckWords = gen_ack(MyAddress, From),
-                            ok = send_words(AckWords), %% queue it up in the front end					
-                            rx_sound_complete(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
+                            %% log/report		
+                            spawn_store_lqa_and_report(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
 
-                            NextStateTimeout = ?ALE_TRW * (length(AckWords) + 1),
-                            NewState = State#state{ call_dir=inbound, 
-                                                    call_address=From, 
-                                                    reply_with_address=MyAddress, 
-                                                    message_state=#msg_state{}, 
-                                                    timeout=NextStateTimeout},
-                            {next_state, call_wait_response_tx_complete, NewState, NextStateTimeout};
-                        {ok,{self_address,NetAddress,net,NetMember,NetSlot,Channels,WaitForReplyTime}} ->
+                            case TxCtrlType of
+                                none ->
+                                    NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
+                                    {next_state, idle, NewState};                            
+                                _ ->
+                                    %% stop the sounding timer
+                                    erlang:cancel_timer(State#state.sound_timer_ref),
+
+                                    %% turn off the receiver (only for use with external transmitters)
+                                    rx_enable(false),
+
+                                    %% Tune the transmitter and PA
+                                    MatchList = radio_db:find_channel(Frequency),
+                                    case MatchList of
+                                        [] ->
+                                            lager:warning("no matching channel found, assuming VFO mode?");
+                                        [ChanRecord|_Rest] ->
+                                            Frequency = tune_transmitter(State#state.transmit_control, ChanRecord),
+                                            Frequency = tune_pa(State#state.transmit_control, ChanRecord),
+                                            ok = transmitter_mode(State#state.transmit_control, ChanRecord)
+                                        end,
+
+                                    %% turn on the transmitter
+                                    {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+                                    {ok, on} = transmit_control(State#state.transmit_control, on),
+
+                                    %% send ack
+                                    AckWords = gen_ack(From, MyAddress),
+                                    ok = send_words(AckWords), %% queue it up in the front end			
+                                    %% Workaround for soundcard buffer latency, without it we may truncate our message
+                                    %% by turning off the TX before the sound is fully played out.
+                                    ok = send_gap(?SOUNDCARD_LATENCY),
+
+                                    %% select the wait for reply time we got from the database
+                                    NewWaitForReplyTime = select_wait_for_reply_time(WaitForReplyTime),
+
+                                    %% set the wait for TX complete timeout
+                                    NextStateTimeout = ?ALE_TRW * (length(AckWords) + 1),
+
+                                    NewState = State#state{ call_dir=inbound, 
+                                                            self_address=MyAddress,
+                                                            other_address=From,
+                                                            reply_with_address=MyAddress,
+                                                            wait_for_reply_time=NewWaitForReplyTime, 
+                                                            message_state=#msg_state{}, 
+                                                            timeout=NextStateTimeout},
+                                    {next_state, call_wait_response_tx_complete, NewState, NextStateTimeout}
+                                end;
+                        {ok,{self_address,_NetAddress,net,_NetMember,_NetSlot,_Channels, WaitForReplyTime}} ->
                             %% This is a net call to NetAddress. Respond with NetMember name in NetSlot!
                             %% NOTE: NetSlot is performed by inserting intermessage gaps prior to response.
                             lager:notice("heard net call from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
 
                             %%
                             %% FIXME: implement reply to net call, for now just log/report
@@ -453,16 +590,15 @@ idle({rx_word, Word}, State=#state{call_address=[], message_state=MessageState})
                             % AckWords = gen_ack(NetMember,From),
                             % %% queue up gaps as needed here
                             % ok = send_words(AckWords), %% queue it up in the front end					
-                            rx_sound_complete(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
 
                             % NextStateTimeout = ?ALE_TRW * (length(AckWords) + 1),
-                            % NewState = State#state{call_dir=inbound, call_address=From, message_state=#msg_state{}, timeout=NextStateTimeout},
+                            % NewState = State#state{call_dir=inbound, other_address=From, message_state=#msg_state{}, timeout=NextStateTimeout},
                             % {next_state, call_wait_response_tx_complete, NewState, NextStateTimeout}
 
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};
 
-                        {ok,{self_address,"@?",global_allcall,_NetMember,NetSlot,Channels,WaitForReplyTime}} ->
+                        {ok,{self_address,"@?",global_allcall,_NetMember,_NetSlot,_Channels,WaitForReplyTime}} ->
                             %% Immediately switch user to this channel and unmute
                             %% log and report
                             %% don't respond
@@ -470,17 +606,17 @@ idle({rx_word, Word}, State=#state{call_address=[], message_state=MessageState})
                             lager:notice("Heard Global AllCall from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, "@?@", [tis|From], {Ber,Sinad}, AMDMessageList),
 
                             %%
                             %% FIXME: tell user to switch to this channel and unmute
                             %%
 
-                            %% log / report
-                            rx_sound_complete(Frequency, "@?@", [tis|From], {Ber,Sinad}, AMDMessageList),
 
                             %% no response, stay idle
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};	                    
                         {ok,{self_address,"@@?",global_anycall,_NetMember,NetSlot,Channels,WaitForReplyTime}} ->
                             %%
@@ -489,7 +625,9 @@ idle({rx_word, Word}, State=#state{call_address=[], message_state=MessageState})
                             lager:notice("got Global AnyCall from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, "@@?", [tis|From], {Ber,Sinad}, AMDMessageList),
 
                             %%
                             %% FIXME: implement reply to global anycall call, for now just log/report
@@ -499,18 +637,17 @@ idle({rx_word, Word}, State=#state{call_address=[], message_state=MessageState})
                             % AckWords = gen_ack(NetMember,From),
                             % %% queue up PRN slot gaps as needed here
                             % ok = send_words(AckWords), %% queue it up in the front end					
-                            rx_sound_complete(Frequency, "@@?", [tis|From], {Ber,Sinad}, AMDMessageList),
 
                             % NextStateTimeout = ?ALE_TRW * (length(AckWords) + 1),
-                            % NewState = State#state{call_dir=inbound, call_address=From, message_state=#msg_state{}, timeout=NextStateTimeout},
+                            % NewState = State#state{call_dir=inbound, other_address=From, message_state=#msg_state{}, timeout=NextStateTimeout},
                             % {next_state, call_wait_response_tx_complete, NewState, NextStateTimeout}
 
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};                            
                         {ok,{self_address,"",null,_NetMember,_NetSlot,_Channels,_WaitForReplyTime}} ->
                             %% Not for us, just ignore
                             lager:notice("heard test NULL message not for us: logging as sound TO: ~p FROM: ~p BER: ~p", [To, From, Ber]),
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState}
                     end;
                 {[to|ToAddr], Message, [tws|FromAddr]} ->
@@ -530,197 +667,286 @@ idle({rx_word, Word}, State=#state{call_address=[], message_state=MessageState})
                         {error, not_found} ->
                             %% Not for us, just log and report
                             lager:notice("heard call not for us: logging as sound TO: ~p FROM: ~p BER: ~p", [To, From, Ber]),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, To, [tws|From], {Ber,Sinad}, AMDMessageList),
 
-                            rx_sound_complete(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
-
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};
                         {ok,{self_address,MyAddress,own,_NetMember,_NetSlot,Channels,WaitForReplyTime}} ->
                             %% Message is for us
                             lager:notice("got TWS message from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, To, [tws|From], {Ber,Sinad}, AMDMessageList),
 
                             %% send ack
-                            rx_sound_complete(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
 
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};
                         {ok,{self_address,NetAddress,net,NetMember,NetSlot,Channels,WaitForReplyTime}} ->
                             lager:notice("heard net call TWS from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
-
-                            rx_sound_complete(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, To, [tws|From], {Ber,Sinad}, AMDMessageList),
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};
                         {ok,{self_address,"@?",global_allcall,_NetMember,NetSlot,Channels,WaitForReplyTime}} ->
                             %% Immediately switch user to this channel and unmute
-                            %% log and report
                             %% don't respond
                             lager:notice("Heard Global AllCall from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, "@?@", [tws|From], {Ber,Sinad}, AMDMessageList),
 
                             %% FIXME: tell user to switch to this channel and unmute
 
-                            %% log / report
-                            rx_sound_complete(Frequency, "@?@", [tis|From], {Ber,Sinad}, AMDMessageList),
-
                             %% no response, stay idle
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};	                    
                         {ok,{self_address,"@@?",global_anycall,_NetMember,NetSlot,Channels,WaitForReplyTime}} ->
                             lager:notice("got Global AnyCall TWS from ~p BER: ~p", [From, Ber]),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, "@@?", [tws|From], {Ber,Sinad}, AMDMessageList),
 
-                            rx_sound_complete(Frequency, "@@?", [tis|From], {Ber,Sinad}, AMDMessageList),
-
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState};                            
                         {ok,{self_address,"",null,_NetMember,_NetSlot,_Channels,_WaitForReplyTime}} ->
                             %% Not for us, just ignore
                             lager:notice("heard test NULL message not for us: logging as sound TO: ~p FROM: ~p BER: ~p", [To, From, Ber]),
-                            NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                            NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                             {next_state, idle, NewState}
                     end;
-                % {[to|ToAddr], [], [tws|FromAddr]} ->
-                %     %%
-                %     %% got terminate or reject message while idle, treat at sounding
-                %     %%
-                %     %% cleanup addresses / strip off any fill characters
-                %     To = string:strip(ToAddr,both,$@),
-                %     From = string:strip(lists:flatten(FromAddr),both,$@),
-                %     lager:notice("heard termination from -- logging as sound TO: ~p FROM: ~p BER: ~p", [To, From, Ber]),
-
-                %     %% Freq = radio_db:read_config(current_freq),
-                %     rx_sound_complete(Frequency, To, [tws|From], {Ber,Sinad}, []),
-                %     %% InitMessageState = #msg_state{},%InitMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                %     NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
-                %     {next_state, idle, NewState};					
                 {[], [], [MType|FromAddr]} ->
                     %%
                     %% got sounding with intact conclusion
                     %%
 
                     %% cleanup addresses / strip off the fill characters
-                    From = string:strip(lists:flatten(FromAddr),both,$@),
-                    rx_sound_complete(Frequency, [], [MType|From], {Ber,Sinad}, []),
-                    NewState = State#state{call_address=[], message_state=#msg_state{}, timeout=0},
+                    From = string:strip(lists:flatten(FromAddr),right,$@),
+                    %% log / report
+                    spawn_store_lqa_and_report(Frequency, [], [MType|From], {Ber,Sinad}, []),
+                    NewState = State#state{other_address=[], message_state=#msg_state{}, timeout=0},
                     {next_state, idle, NewState};
                 Others ->
                     lager:warning("idle: improper message sections: ~p",[Others]),
                     next_state_idle(State)
             end;
         incomplete ->
-            %% NewMessageState = {Status, Section, Calling, Message, Conclusion, LastType, LastBadVotes, WordCount},
             NewState = State#state{message_state=NewMessageState, timeout=0},
             {next_state, idle, NewState}
     end;
 idle({fnctrl, Word}, State) ->
-    NewState=State#state{fnctrl=Word}, % replace exiting record for FNCTRL
+    %% FIXME: is this deprecated????
+    NewState=State#state{fnctrl=Word},
     next_state_idle(NewState);
-idle({sound}, State) ->
-    %% We need to cancel the normal sounding timer incase sound/1 was used, since
-    %% otherwise, when this sequence completes, a second sounding timer will be scheduled!!
-    gen_fsm:cancel_timer(State#state.sound_timer_ref),
-    Freq = radio_db:read_config(current_freq),
-    {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
-    {ok, on} = transmit_control_tx(State#state.transmit_control, on),
-    NextTimeout = send_sound(Freq),
-    NextState = State#state{link_state=unlinked, call_dir=none, call_address=[], timeout=NextTimeout, sounding_channels=[], sound_freq = Freq, eot=false},    
-    {next_state, sounding, NextState, NextTimeout};
-idle({sound_2g4g}, State) ->
-    %% We need to cancel the normal sounding timer incase sound_2g4g/1 was used, since
-    %% otherwise, when this sequence completes, a second sounding timer will be scheduled!!
-    gen_fsm:cancel_timer(State#state.sound_timer_ref),
-    Freq = radio_db:read_config(current_freq),
-    {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
-    {ok, on} = transmit_control_tx(State#state.transmit_control, on),
-    NextTimeout = send_sound_2g4g(Freq),
-    NextState = State#state{link_state=unlinked, call_dir=none, call_address=[], timeout=NextTimeout, sounding_channels=[], sound_freq = Freq, eot=false},    
-    {next_state, sounding, NextState, NextTimeout};    
-idle({scanning_sound},  State) ->
-    %% We need to cancel the normal sounding timer incase scanning_sound/1 was used, since
-    %% otherwise, when this sequence completes, a second sounding timer will be scheduled!!
-    gen_fsm:cancel_timer(State#state.sound_timer_ref),
-
-    %% Now load up the sounding channel list
-    Channels = radio_db:find_auto_channels(),
-    [Chan1|_] = Channels,
-
-    %% Next tune the radio and PA
-    ChanFreq = tune_radio(State#state.transmit_control, Chan1),
-    NextTimeout = ?ALE_PA_SWITCH_TIME,
-    NewState = State#state{link_state=unlinked, call_dir=none, call_address=[], timeout=NextTimeout, sounding_channels=Channels, sound_freq = ChanFreq, eot=false},
-    {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};   	
-idle({call, Address, CallType, AMDMessage}, State) ->
-    lager:debug("individual call request"),
-    case whereis(backend_handler) of
-        undefined -> lager:info("backend_handler not registered");
+idle({sound, Frequency}, State=#state{transmit_control=TxCtrlType}) ->
+    case TxCtrlType of
+        none ->
+            lager:error("Cannot sound with no transmit control defined!"),
+            next_state_idle(State);
         _ ->
-            Freq = radio_db:read_config(current_freq),	
-            {_,[H,_,M,_,S,_,Ms]} = lager_util:format_time(lager_util:maybe_utc(lager_util:localtime_ms(os:timestamp()))),
-            Formatted = lists:flatten(["[",H,":",M,":",S,".",Ms,"]","[FRQ ",integer_to_list(Freq), "]","[ALE][TO][",Address,"]"]),
-            Event = backend_handler:build_response([{event,ale_ind_call},{data, list_to_binary(Formatted)}]),
-            backend_handler ! {data, Event}
-    end,
+            %% We need to cancel the normal sounding timer incase sound/1 was used, since
+            %% otherwise, when this sequence completes, a second sounding timer will be scheduled!!        
+            erlang:cancel_timer(State#state.sound_timer_ref),
+            % Freq = radio_db:read_config(current_freq),
 
-    %% generate a scanning individual call message
-    Words = gen_call(?ALE_WORD_TYPE_TIS, Address, CallType, AMDMessage),
-    ok = send_words(Words), %% queue it up in the front end	
-    NextTimeout = ?ALE_TRW * (length(Words) + 1),
-    NewState = State#state{link_state=unlinked, call_dir=outbound, call_address=Address, timeout=NextTimeout, eot=false},
-    {next_state, call_wait_tx_complete, NewState, NextTimeout};
+            %% turn off the receiver (only for use with external transmitters)
+            rx_enable(false),
+            
+            %% Tune the transmitter and PA
+            MatchList = radio_db:find_channel(Frequency),
+            case MatchList of
+                [] ->
+                    lager:warning("no matching channel found, assuming VFO mode?");
+                [ChanRecord|_Rest] ->
+                    Frequency = tune_transmitter(State#state.transmit_control, ChanRecord),
+                    Frequency = tune_pa(State#state.transmit_control, ChanRecord)
+                end,    
+
+            {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+            {ok, on} = transmit_control(State#state.transmit_control, on),
+            
+            NextTimeout = send_sound(Frequency),
+            NextState = State#state{link_state=unlinked, call_dir=none, other_address=[], timeout=NextTimeout, sounding_channels=[], sound_freq = Frequency, eot=false},
+            {next_state, sounding, NextState, NextTimeout}
+        end;    
+idle({sound_2g4g, Frequency}, State=#state{transmit_control=TxCtrlType}) ->
+    case TxCtrlType of
+        none ->
+            lager:error("Cannot sound with no transmit control defined!"),
+            next_state_idle(State);
+        _ ->    
+            %% We need to cancel the normal sounding timer incase sound_2g4g/1 was used, since
+            %% otherwise, when this sequence completes, a second sounding timer will be scheduled!!
+            erlang:cancel_timer(State#state.sound_timer_ref),
+
+            %% turn off the receiver (only for use with external transmitters)
+            rx_enable(false),
+
+            %% Tune the transmitter and PA
+            MatchList = radio_db:find_channel(Frequency),
+            case MatchList of
+                [] ->
+                    lager:warning("no matching channel found, assuming VFO mode?");
+                [ChanRecord|_Rest] ->
+                    Frequency = tune_transmitter(State#state.transmit_control, ChanRecord),
+                    Frequency = tune_pa(State#state.transmit_control, ChanRecord)
+                end,    
+
+            {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+            {ok, on} = transmit_control(State#state.transmit_control, on),
+
+            NextTimeout = send_sound_2g4g(Frequency),
+            NextState = State#state{link_state=unlinked, call_dir=none, other_address=[], timeout=NextTimeout, sounding_channels=[], sound_freq = Frequency, eot=false},    
+            {next_state, sounding, NextState, NextTimeout}
+    end;
+idle({scanning_sound},  State=#state{transmit_control=TxCtrlType}) ->
+    case TxCtrlType of
+        none ->
+            lager:error("Cannot sound with no transmit control defined!"),
+            next_state_idle(State);
+        _ ->
+            %% We need to cancel the normal sounding timer incase scanning_sound/1 was used, since
+            %% otherwise, when this sequence completes, a second sounding timer will be scheduled!!        
+            erlang:cancel_timer(State#state.sound_timer_ref),
+            %% Now load up the sounding channel list
+            Channels = radio_db:find_auto_channels(),
+            [Chan1|_] = Channels,
+            %% Next tune the radio and PA
+            ChanFreq = tune_transmitter(State#state.transmit_control, Chan1),
+            NextTimeout = ?ALE_PA_SWITCH_TIME,
+            NewState = State#state{link_state=unlinked, call_dir=none, other_address=[], timeout=NextTimeout, sounding_channels=Channels, sound_freq = ChanFreq, eot=false},
+            {next_state, sounding_tune_wait_lbt, NewState, NextTimeout}
+        end;
+idle({call, Address, Frequency, CallType, AMDMessage}, State=#state{transmit_control=TxCtrlType}) ->
+    case TxCtrlType of
+        none ->
+            lager:error("Cannot sound with no transmit control defined!"),
+            next_state_idle(State);
+        _ ->
+            lager:debug("individual call request"),
+
+            %% TODO replace this with call to self_address database
+            SelfAddress = radio_db:read_config(id),
+
+            %% TODO: decide what to do with channels, Type, etc.
+            OtherAddressMatch = radio_db:read_other_address(Address),
+
+            %% for now, we're only using this lookup to determine waitforreplytime, later
+            %% channels, netmember, slots, etc. may be needed
+            NewWaitForReplyTime = case OtherAddressMatch of
+                {error, not_found} ->
+                    %% Calling station not in our database, use defaults
+                    select_wait_for_reply_time(default);
+                {ok,{self_address,Address,Type,NetMember,_NetSlot,Channels,WaitForReplyTime}} ->
+                    %% found station in the database, use it's parameters
+                    select_wait_for_reply_time(WaitForReplyTime)
+            end,
+
+            erlang:cancel_timer(State#state.sound_timer_ref),
+
+            %% turn off the receiver (only for use with external transmitters)
+            rx_enable(false),
+
+            %% Tune the transmitter and PA
+            MatchList = radio_db:find_channel(Frequency),
+            case MatchList of
+                [] ->
+                    lager:warning("no matching channel found, assuming VFO mode?");
+                [ChanRecord|_Rest] ->
+                    Frequency = tune_transmitter(State#state.transmit_control, ChanRecord),
+                    Frequency = tune_pa(State#state.transmit_control, ChanRecord)
+                end,
+
+            %% turn on the transmitter
+            {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+            {ok, on} = transmit_control(State#state.transmit_control, on),
+
+            %% generate a scanning individual call message
+            Words = gen_call(?ALE_WORD_TYPE_TIS, Address, SelfAddress, CallType, AMDMessage),
+            ok = send_words(Words), %% queue it up in the front end	
+            %% Workaround for soundcard buffer latency, without it we may truncate our message
+            %% by turning off the TX before the sound is fully played out.
+            ok = send_gap(?SOUNDCARD_LATENCY),
+
+            % Freq = radio_db:read_config(current_freq),
+
+            % EventData = [{freq,Freq},{address,list_to_binary(Address)}],
+            % spawn_notify_ale_event(ale_ind_call, EventData),
+            NextTimeout = ?ALE_TRW * (length(Words) + 1),
+            NewState = State#state{ link_state=unlinked, 
+                                    call_dir=outbound, 
+                                    other_address=Address,
+                                    self_address=SelfAddress,
+                                    reply_with_address=SelfAddress,
+                                    wait_for_reply_time=NewWaitForReplyTime,
+                                    timeout=NextTimeout, eot=false},
+            {next_state, call_wait_tx_complete, NewState, NextTimeout}
+        end;
 idle({tx_complete}, State) ->
     %% ignore it, not an ale transmission
     next_state_idle(State);
+idle({amd, _Message}, State) ->
+    lager:error("can't send AMD when not in a call"),    
+    next_state_idle(State);    
 idle(timeout, State) ->
     lager:debug("Got timeout in idle state??"),
-    % ale:scanning_sound(),
-    % NewState = State#state{timeout=?ALE_SOUNDING_PERIOD},
     next_state_idle(State).
 
 send_sound_2g4g(Freq) ->
-    case whereis(backend_handler) of
-        undefined -> lager:info("no control device is connected");
-        _ ->
-            {_,[H,_,M,_,S,_,Ms]} = lager_util:format_time(lager_util:maybe_utc(lager_util:localtime_ms(os:timestamp()))),
-            Formatted = lists:flatten(["[",H,":",M,":",S,".",Ms,"]","[FRQ ",integer_to_list(Freq), "]","[ALE][SND][SENDING 2G/4G TWS SOUNDING]"]),
-            Event = backend_handler:build_response([{event,ale_tx_sound},{data, list_to_binary(Formatted)}]),
-            backend_handler ! {data, Event}
-    end,  
+    {_,[H,_,M,_,S,_,Ms]} = lager_util:format_time(lager_util:maybe_utc(lager_util:localtime_ms(os:timestamp()))),
+    Formatted = lists:flatten(["[",H,":",M,":",S,".",Ms,"]","[FRQ ",integer_to_list(Freq), "]","[ALE][SND][SENDING 2G/4G TWS SOUNDING]"]),
+
+    spawn_notify_ale_event(ale_tx_sound, {data, list_to_binary(Formatted)}),
+    
     %% generate a sounding
-    %% XXX TODO: pull channel sets from database
     ChannelSets = "HFNHFL",
-    Sound2G4GWords = gen_call(?ALE_WORD_TYPE_TWAS, "HFR", non_scanning, ChannelSets),
+    SelfAddress = radio_db:read_config(id),        
+    Sound2G4GWords = gen_call(?ALE_WORD_TYPE_TWAS, "HFR", SelfAddress, non_scanning, ChannelSets),
     ok = send_words(Sound2G4GWords),    
+    % ok = send_gap(?ALE_INTER_MESSAGE_GAP),
+    % Words = gen_sound(),
+    % ok = send_words(Words), %% queue it up in the front end
+    %% Workaround for soundcard buffer latency, without it we may truncate our message
+    %% by turning off the TX before the sound is fully played out.
+    ok = send_gap(?SOUNDCARD_LATENCY),
 
     %% return the Freq and expected timeout time for this sounding (plus some slop time for the PA switching)
    	?ALE_TRW * length(Sound2G4GWords) + ?ALE_TT + ?ALE_PA_SWITCH_TIME + ?ALE_PA_SWITCH_TIME.
 
 send_sound(Freq) ->
-    case whereis(backend_handler) of
-        undefined -> lager:info("no control device is connected");
-        _ ->
-            {_,[H,_,M,_,S,_,Ms]} = lager_util:format_time(lager_util:maybe_utc(lager_util:localtime_ms(os:timestamp()))),
-            Formatted = lists:flatten(["[",H,":",M,":",S,".",Ms,"]","[FRQ ",integer_to_list(Freq), "]","[ALE][SND][SENDING TWS SOUNDING]"]),
-            Event = backend_handler:build_response([{event,ale_tx_sound},{data, list_to_binary(Formatted)}]),
-            backend_handler ! {data, Event}
-    end,  
+    % EventData = {freq,Freq},
+    % case whereis(backend_handler) of
+    %     undefined -> lager:info("no control device is connected");
+    %     _ ->
+    {_,[H,_,M,_,S,_,Ms]} = lager_util:format_time(lager_util:maybe_utc(lager_util:localtime_ms(os:timestamp()))),
+    Formatted = lists:flatten(["[",H,":",M,":",S,".",Ms,"]","[FRQ ",integer_to_list(Freq), "]","[ALE][SND][SENDING 2G/4G TWS SOUNDING]"]),
+    %         Event = backend_handler:build_response([{event,ale_tx_sound},{data, list_to_binary(Formatted)}]),
+    %         backend_handler ! {data, Event}
+    % end,  
+    spawn_notify_ale_event(ale_tx_sound, {data, list_to_binary(Formatted)}),
+    
     %% generate a sounding
     %% XXX TODO: pull channel sets from database
     ChannelSets = "HFNHFL",
-    Sound2G4GWords = gen_call(?ALE_WORD_TYPE_TWAS, "HFR", non_scanning, ChannelSets),
+    SelfAddress = radio_db:read_config(id),        
+    Sound2G4GWords = gen_call(?ALE_WORD_TYPE_TWAS, "HFR", SelfAddress, non_scanning, ChannelSets),
     ok = send_words(Sound2G4GWords),    
     ok = send_gap(?ALE_INTER_MESSAGE_GAP),
     Words = gen_sound(),
     ok = send_words(Words), %% queue it up in the front end
+    %% Workaround for soundcard buffer latency, without it we may truncate our message
+    %% by turning off the TX before the sound is fully played out.
+    ok = send_gap(?SOUNDCARD_LATENCY),
 
     %% return the Freq and expected timeout time for this sounding (plus some slop time for the PA switching)
    	?ALE_TRW * length(Words) + length(Sound2G4GWords) + ?ALE_INTER_MESSAGE_GAP + ?ALE_TT + ?ALE_PA_SWITCH_TIME + ?ALE_PA_SWITCH_TIME.
@@ -735,24 +961,59 @@ next_timeout(Timeout, Period) when Period >= Timeout ->
 next_timeout(Timeout, Period) ->
     Timeout - Period.
 
-call_wait_tx_complete({rx_word, Word}, State=#state{timeout=Timeout}) ->
+call_wait_tx_complete({rx_word, Word}, State=#state{timeout=Timeout, eot=Eot}) ->
     <<DataLinkCtrl:2,_BadVotes:6,_Type:3,_C1:7,_C2:7,_C3:7>> = <<Word:32>>,
-    %% FIXME: add case fpr ALE_DATALINK_EOT    
-    case DataLinkCtrl of 
-        ?ALE_DATALINK_PHA ->
+    lager:debug("DataLinkCtrl=~p, Eot=~p, ",[DataLinkCtrl, Eot]),
+    case {DataLinkCtrl, Eot} of
+        {?ALE_DATALINK_EOT, _} ->
+            %% Time to turn off transmitter and switch back to RX
+            {ok, off} = transmit_control(State#state.transmit_control, off),
+            {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+            %% turn on the receiver (only for use with external transmitters)
+            rx_enable(true),
+            
             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-            %% lager:info("call_wait_tx_complete: NextTimeout=~p",[NextTimeout]),
-            NewState=State#state{timeout=NextTimeout},
+            NewState=State#state{timeout=NextTimeout, eot=true},
+            tx_complete(),
             {next_state, call_wait_tx_complete, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOT, _, true} ->
+
+        %     %% turn on the receiver (only for use with external transmitters)
+        %     rx_enable(true),
+        
+        %     %% Time to turn off transmitter and switch back to RX
+        %     {ok, off} = transmit_control(State#state.transmit_control, off),
+        %     {ok, scan} = tuner_control(State#state.tuner_control, scan),
+        %     % %% And tell user (if connected) that ALE transmission is complete     
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout, eot=true},
+        %     %% don't sent tx_complete() event yet
+        %     {next_state, call_wait_tx_complete, NewState, NextTimeout};            
+        % {?ALE_DATALINK_PHA, _,_} ->
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_wait_tx_complete, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOF, false,_} ->
+        %     %% We haven't yet received the EOT, so this is probably an inter-message gap
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_wait_tx_complete, NewState, NextTimeout};        
+        % {?ALE_DATALINK_EOF, true,_} ->
+        %     %% We already heard the EOT, send complete message to ourself
+        %     tx_complete(),
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_wait_tx_complete, NewState, NextTimeout};
         _Other ->
-            lager:debug("got rx_word ~8.16.0b while waiting for TX complete!",[Word]),
+            lager:warning("got rx_word ~8.16.0b while waiting for TX complete!", [Word]),
             {next_state, call_wait_tx_complete, State, Timeout}
 		end;
-call_wait_tx_complete({tx_complete}, State) ->
+call_wait_tx_complete({tx_complete}, State=#state{wait_for_reply_time=WaitForReplyTime}) ->
     lager:debug("got tx_complete"),
     NewMessageState = #msg_state{},
-    NewState = State#state{message_state=NewMessageState, timeout=?ALE_TWRT},
-    {next_state, call_wait_handshake_response, NewState, ?ALE_TWRT};
+    NewState = State#state{message_state=NewMessageState, timeout=WaitForReplyTime},
+    {next_state, call_wait_handshake_response, NewState, WaitForReplyTime};
 call_wait_tx_complete({scanning_sound}, State=#state{timeout=Timeout}) ->
     lager:debug("got scanning sound event, rescheduling..."),
     SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
@@ -760,37 +1021,49 @@ call_wait_tx_complete({scanning_sound}, State=#state{timeout=Timeout}) ->
     %%% XXX using Timeout here, effectively resets the tx_complete timeout timer, is there a better way?
     {next_state, call_wait_tx_complete, NewState, Timeout};    
 call_wait_tx_complete(timeout, State) ->
-    tell_user_eot(),
+    {ok, off} = transmit_control(State#state.transmit_control, off),
+    {ok, scan} = tuner_control(State#state.tuner_control, scan),
+    abort_tx(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+    
+    spawn_tell_user_eot(),
     lager:error("timeout occurred while waiting for tx_complete"),
-    next_state_idle(State).
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState=State#state{sound_timer_ref=SndTimerRef},    
+    next_state_idle(NewState).
 
 compute_ber(LastBadVotes, LastWordCount) when LastWordCount > 0 ->
     round(?ALE_MAX_BER_VAL - (float(LastBadVotes) / float(LastWordCount)));
 compute_ber(_LastBadVotes, _LastWordCount) ->
     0.0.
 
-
-tune_radio(none, Chan) ->
+tune_transmitter(none, Chan) ->
     %% no radio (transmitter) to tune
     Chan#channel.frequency;
-tune_radio(internal, Chan) ->
+tune_transmitter(internal, Chan) ->
     lager:debug("internal tune radio not implemented"),
     Chan#channel.frequency;
-tune_radio(external, Chan) ->
+tune_transmitter(external, Chan) ->
     ChanFreq = Chan#channel.frequency,
-    FreqCmdType = <<"FA">>,
-    FreqCmdTerm = <<";">>,
-    FreqBin = list_to_binary(integer_to_list(ChanFreq)),
-    FreqCmd = << FreqCmdType/binary, FreqBin/binary, FreqCmdTerm/binary  >>,
-    message_server_proc ! {cmd, FreqCmd},    
-    {ok, _Ret2} = radio_control_set_freq(external, ChanFreq),
-    case whereis(backend_handler) of
-        undefined -> lager:info("no control device is connected");
-        _ ->
-            JSON = jsx:encode(channel:to_json(Chan)),
-            Event = backend_handler:build_response([{event,<<"channel_update">>}, {channel,JSON}]),
-            backend_handler ! {data, Event}
-    end,    
+    % FreqCmdType = <<"FA">>,
+    % FreqCmdTerm = <<";">>,
+    % FreqBin = list_to_binary(integer_to_list(ChanFreq)),
+    % FreqCmd = << FreqCmdType/binary, FreqBin/binary, FreqCmdTerm/binary  >>,
+    % message_server_proc ! {cmd, FreqCmd},    
+    {ok, _Ret2} = radio_control_port:set_chan(Chan#channel.id),
+    {ok, _Ret3} = radio_control_port:set_freq(ChanFreq),
+
+    % JSON = jsx:encode(channel:to_json(Chan)),
+    % spawn_notify_ale_event(<<"channel_update">>, {channel,JSON}),
+    % case whereis(backend_handler) of
+        % undefined -> lager:info("no control device is connected");
+        % _ ->
+            % JSON = jsx:encode(channel:to_json(Chan)),
+            % Event = backend_handler:build_response([{event,<<"channel_update">>}, {channel,JSON}]),
+            % backend_handler ! {data, Event}
+    % end,    
     ChanFreq.
 
 tune_pa(none, Chan) ->
@@ -812,28 +1085,35 @@ tune_pa(external, Chan) ->
 %% For now we don't get fast waveform detections, just received words, otherwise timeout and go sound
 sounding_lbt({current_freq,Freq}, State) ->
     lager:warning("received user freq change during LBT, abort sounding..."),
-    {ok, off} = transmit_control_tx(State#state.transmit_control, off),
+        {ok, off} = transmit_control(State#state.transmit_control, off),
     {ok, scan} = tuner_control(State#state.tuner_control, scan),
     abort_tx(),
-    tell_user_eot(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+
+    spawn_tell_user_eot(),
     SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},    
     {next_state, idle, NextState} = next_state_idle(NewState),
     idle({current_freq,Freq}, NextState);
-sounding_lbt({rx_word, Word}, State=#state{timeout=Timeout}) ->
+sounding_lbt({rx_word, Word}, State=#state{timeout=_Timeout}) ->
     <<DataLinkCtrl:2,_BadVotes:6,_Type:3,_C1:7,_C2:7,_C3:7>> = <<Word:32>>,
-    %% FIXME: add case fpr ALE_DATALINK_EOT    
     case DataLinkCtrl of 
-        ?ALE_DATALINK_PHA ->
-            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-            NewState=State#state{timeout=NextTimeout},
-            {next_state, sounding_lbt, NewState, NextTimeout};
+        % ?ALE_DATALINK_PHA ->
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, sounding_lbt, NewState, NextTimeout};
         _Other ->
-            lager:warning("received word during LBT, abort sounding..."),
-            {ok, off} = transmit_control_tx(State#state.transmit_control, off), % just in case!
+            lager:warning("received word during LBT, abort sounding..."),            
+            {ok, off} = transmit_control(State#state.transmit_control, off), % just in case!
             {ok, scan} = tuner_control(State#state.tuner_control, scan), % just in case
             abort_tx(),            
-            tell_user_eot(),
+
+            %% turn on the receiver (only for use with external transmitters)
+            rx_enable(true),
+            
+            spawn_tell_user_eot(),
             SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),            
             NewState=State#state{sound_timer_ref=SndTimerRef},    
             %% direcly jump to idle state
@@ -842,10 +1122,14 @@ sounding_lbt({rx_word, Word}, State=#state{timeout=Timeout}) ->
     end;
 sounding_lbt(timeout,  State=#state{sounding_channels=Channels, sound_freq=SndFreq}) ->
     lager:debug("nothing heard, sounding..."),
+
+    %% turn off the receiver (only for use with external transmitters)
+    rx_enable(false),
+    
     {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
-    {ok, on} = transmit_control_tx(State#state.transmit_control, on),
+    {ok, on} = transmit_control(State#state.transmit_control, on),
     NextTimeout = send_sound(SndFreq),
-    NewState = State#state{link_state=unlinked, call_dir=none, call_address=[], timeout=NextTimeout, sounding_channels=Channels, eot=false},
+    NewState = State#state{link_state=unlinked, call_dir=none, other_address=[], timeout=NextTimeout, sounding_channels=Channels, eot=false},
     {next_state, sounding, NewState, NextTimeout}.
 
 tell_user_eot() ->
@@ -856,49 +1140,59 @@ tell_user_eot() ->
             backend_handler ! {data, EventMsg}
     end.
 
+spawn_tell_user_eot() ->
+    _Pid = spawn(ale, tell_user_eot,[]).
+
 %%
 %% Wait for radio and PA to tune while listening for traffic
 %%
 sounding_tune_wait_lbt(timeout, State=#state{sounding_channels=[]}) ->
     %% no channels left, done with sounding
-    tell_user_eot(),
-    lager:debug("final retune of PA"),
-    Freq = radio_db:read_config(current_freq),
-    {ok, _Ret2} = pa_control_set_freq(State#state.pa_control, Freq),	
+    spawn_tell_user_eot(),
+    lager:debug("emtpy channel list, done."),
+    % Freq = radio_db:read_config(current_freq),
+    % {ok, _Ret2} = pa_control_set_freq(State#state.pa_control, Freq),	
     next_state_idle(State);
 sounding_tune_wait_lbt(timeout, State=#state{sounding_channels=[Chan|Channels]}) ->
     lager:debug("done waiting for tune now LBT..."),
 
     %% Need extra delay for Hardrock 50, so doing this here, FIXME !!!!
     _ChanFreq = tune_pa(State#state.pa_control, Chan),
-
     NextTimeout = ?ALE_SOUND_LBT_TIMEOUT,
     NewState = State#state{timeout=NextTimeout, sounding_channels=Channels},
     {next_state, sounding_lbt, NewState, NextTimeout};
 sounding_tune_wait_lbt({current_freq,Freq}, State) ->
-    lager:warning("received user freq change during sounding_tune_wait_lbt, abort sounding..."),
-    {ok, off} = transmit_control_tx(State#state.transmit_control, off), % just in case!
+    lager:warning("received user freq change during sounding_tune_wait_lbt, abort sounding..."),    
+    {ok, off} = transmit_control(State#state.transmit_control, off), % just in case!
     {ok, scan} = tuner_control(State#state.tuner_control, scan), % just in case
     abort_tx(),
-    tell_user_eot(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+    
+    spawn_tell_user_eot(),
     SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),            
     NewState=State#state{sound_timer_ref=SndTimerRef},        
     {next_state, idle, NextState} = next_state_idle(NewState),
     idle({current_freq,Freq}, NextState);
-sounding_tune_wait_lbt({rx_word, Word}, State=#state{timeout=Timeout}) ->
+sounding_tune_wait_lbt({rx_word, Word}, State=#state{timeout=_Timeout}) ->
     <<DataLinkCtrl:2,_BadVotes:6,_Type:3,_C1:7,_C2:7,_C3:7>> = <<Word:32>>,
     %% FIXME: add case fpr ALE_DATALINK_EOT
     case DataLinkCtrl of 
-        ?ALE_DATALINK_PHA ->
-            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-            NewState=State#state{timeout=NextTimeout},
-            {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};
+        % ?ALE_DATALINK_PHA ->
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};
         _Other ->
             lager:warning("rx word received, abort sounding_tune_wait_lbt..."),
-            {ok, off} = transmit_control_tx(State#state.transmit_control, off), % just in case!
+            {ok, off} = transmit_control(State#state.transmit_control, off), % just in case!
             {ok, scan} = tuner_control(State#state.tuner_control, scan), % just in case
             abort_tx(),    
-            tell_user_eot(),            
+
+            %% turn on the receiver (only for use with external transmitters)
+            rx_enable(true),
+            
+            spawn_tell_user_eot(),
             SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),            
             NewState=State#state{sound_timer_ref=SndTimerRef},    
             %% direcly jump to idle state
@@ -908,10 +1202,14 @@ sounding_tune_wait_lbt({rx_word, Word}, State=#state{timeout=Timeout}) ->
 
 sounding({current_freq,Freq}, State) ->
     lager:warning("received user freq change during sounding, abort sounding..."),
-    {ok, off} = transmit_control_tx(State#state.transmit_control, off), %% just in case
+    {ok, off} = transmit_control(State#state.transmit_control, off), %% just in case
     {ok, scan} = tuner_control(State#state.tuner_control, scan), %% just in case
     abort_tx(),
-    tell_user_eot(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+
+    spawn_tell_user_eot(),
     SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),            
     NewState=State#state{sound_timer_ref=SndTimerRef},
     {next_state, idle, NextState} = next_state_idle(NewState),
@@ -922,120 +1220,148 @@ sounding({rx_word, Word}, State=#state{timeout=Timeout, eot=SoundEot}) ->
     case {DataLinkCtrl, SoundEot} of
         {?ALE_DATALINK_EOT, _} ->
             %% Time to turn off transmitter and switch back to RX
-            {ok, off} = transmit_control_tx(State#state.transmit_control, off),
+            {ok, off} = transmit_control(State#state.transmit_control, off),
             {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+            %% turn on the receiver (only for use with external transmitters)
+            rx_enable(true),
+
             % %% And tell user (if connected) that ALE transmission is complete     
-            % tell_user_eot(), %%% <<= NOT YET
+            % spawn_tell_user_eot(), %%% <<= NOT YET
+            tx_complete(),
+            
             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
             NewState=State#state{timeout=NextTimeout, eot=true},
             %% Stay in this state until we hear our own EOF
             {next_state, sounding, NewState, NextTimeout};
-        {?ALE_DATALINK_PHA, _} ->
-            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-            NewState=State#state{timeout=NextTimeout},
-            {next_state, sounding, NewState, NextTimeout};
-        {?ALE_DATALINK_EOF, false} ->
-            %% We haven't yet received the EOT, so this is probably an inter-message gap
-            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-            NewState=State#state{timeout=NextTimeout},
-            {next_state, sounding, NewState, NextTimeout};        
-        {?ALE_DATALINK_EOF, true} ->
-            %% We already heard the EOT, send complete message to ourself
-            tx_complete(),
-            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-            NewState=State#state{timeout=NextTimeout},
-            {next_state, sounding, NewState, NextTimeout};
+        % {?ALE_DATALINK_PHA, _} ->
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, sounding, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOF, false} ->
+        %     %% We haven't yet received the EOT, so this is probably an inter-message gap
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, sounding, NewState, NextTimeout};        
+        % {?ALE_DATALINK_EOF, true} ->
+        %     %% We already heard the EOT, send complete message to ourself
+        %     tx_complete(),
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, sounding, NewState, NextTimeout};
         _Other ->
             lager:debug("got rx_word ~8.16.0b while waiting for TX complete!", [Word]),
             {next_state, sounding, State}            
 		end;
 sounding({tx_complete}, State=#state{sounding_channels=[]}) ->		
     lager:info("sounding complete..."),
-    %% re init the sounding timer for next time
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),            
-    Freq = radio_db:read_config(current_freq),
-    MatchList = radio_db:find_channel(Freq),
-    case MatchList of
-        [] ->
-            lager:warning("no matching channel found, assuming VFO mode?");
-        [ChanRecord|_Rest] ->
-            case whereis(backend_handler) of
-                undefined -> lager:info("no control device is connected");
-                _ ->
-                    JSON = jsx:encode(channel:to_json(ChanRecord)),
-                    Event = backend_handler:build_response([{event,<<"channel_update">>}, {channel,JSON}]),
-                    backend_handler ! {data, Event}
-            end
-    end,
 
-    %% still need to re-tune to prior user channel, then we're done
-    {ok, _Ret2} = radio_control_set_freq(State#state.transmit_control, Freq),
-    NextTimeout = ?ALE_PA_SWITCH_TIME,
-    NewState = State#state{timeout=NextTimeout, sound_timer_ref=SndTimerRef, sounding_channels=[]},
-    {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};
+    spawn_tell_user_eot(),
+
+    %% re init the sounding timer for next time
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState = State#state{sound_timer_ref=SndTimerRef, sounding_channels=[]},
+    next_state_idle(NewState);
+
+    % Freq = radio_db:read_config(current_freq),
+    % MatchList = radio_db:find_channel(Freq),
+    % case MatchList of
+    %     [] ->
+    %         lager:warning("no matching channel found, assuming VFO mode?");
+    %     [ChanRecord|_Rest] ->
+    %         JSON = jsx:encode(channel:to_json(ChanRecord)),
+    %         spawn_notify_ale_event(<<"channel_update">>, {channel,JSON})
+    %         % case whereis(backend_handler) of
+    %         %     undefined -> lager:info("no control device is connected");
+    %         %     _ ->
+    %         %         JSON = jsx:encode(channel:to_json(ChanRecord)),
+    %         %         Event = backend_handler:build_response([{event,<<"channel_update">>}, {channel,JSON}]),
+    %         %         backend_handler ! {data, Event}
+    %         % end
+    % end,
+    % %% still need to re-tune to prior user channel, then we're done
+    % {ok, _Ret2} = radio_control_set_freq(State#state.transmit_control, Freq),    
+    % NextTimeout = ?ALE_PA_SWITCH_TIME,
+    % NewState = State#state{timeout=NextTimeout, sound_timer_ref=SndTimerRef, sounding_channels=[]},
+    % {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};
 sounding({tx_complete}, State=#state{sounding_channels=[Chan|Channels]}) ->
-    % ok = transmit_control_tx(off),
+    % ok = transmit_control(off),
     % ok = tuner_control(scan),
     %% EOT done, switched back to RX, and heard our own EOF
-    ChanFreq = tune_radio(State#state.transmit_control, Chan),
+    ChanFreq = tune_transmitter(State#state.transmit_control, Chan),
     lager:debug("got tx complete, tuning radio for ~p",[ChanFreq]),
     NextTimeout = ?ALE_PA_SWITCH_TIME,
-    NewState = State#state{link_state=unlinked, call_dir=none, call_address=[], timeout=NextTimeout, sounding_channels=[Chan|Channels], sound_freq = ChanFreq},
+    NewState = State#state{link_state=unlinked, call_dir=none, other_address=[], timeout=NextTimeout, sounding_channels=[Chan|Channels], sound_freq = ChanFreq},
     {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};    
 sounding(timeout, State) ->
-    {ok, off} = transmit_control_tx(State#state.transmit_control, off),
+    {ok, off} = transmit_control(State#state.transmit_control, off),
     {ok, scan} = tuner_control(State#state.tuner_control, scan),
     abort_tx(),
-    tell_user_eot(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+    
+    spawn_tell_user_eot(),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState=State#state{sound_timer_ref=SndTimerRef},      
     lager:error("timeout occurred while waiting for tx_complete"),
-    next_state_idle(State).
+    next_state_idle(NewState).
 
 %%
 %% Wait for handshake response
 %% 
 call_wait_handshake_response({rx_word, Word}, State=#state{ link_state=LinkState, 
                                                             call_dir=CallDir, 
-                                                            call_address=CallAddress, 
+                                                            other_address=OtherAddress, 
+                                                            self_address=MyAddress,
                                                             reply_with_address=ReplyWithAddress,
                                                             message_state=MessageState, 
                                                             timeout=Timeout}) ->
-
     %% process incoming message words
-    {Status, Section, Calling, Message, Conclusion, LastType, LastBadVotes, WordCount, {Sinad, _Frequency}} = 
-        receive_msg(Word, MessageState),
-
-    % lager:info("call_wait_handshake_response NextTimeout=~p",[NextTimeout]),
+    NewMessageState = receive_msg(Word, MessageState),
 
     %% decide what to do 
-    case Status of 
+    case NewMessageState#msg_state.status of 
         complete ->
-            % got a complete message, validate it, then take action
+            LastBadVotes = NewMessageState#msg_state.last_bad_votes,
+            WordCount = NewMessageState#msg_state.word_count,
+            Calling = NewMessageState#msg_state.calling,
+            Message = NewMessageState#msg_state.message,
+            Conclusion = NewMessageState#msg_state.conclusion,
+            Conclusion_List = NewMessageState#msg_state.conclusion_list,
+
+            BestConclusion = find_longest_conclusion(Conclusion_List),
             Ber = compute_ber(LastBadVotes, WordCount),
-            case {CallDir, Calling, Message, Conclusion} of
+            Sinad = NewMessageState#msg_state.sinad,
+            % Frequency = NewMessageState#msg_state.frequency,
+
+            case {CallDir, Calling, Message, BestConclusion} of
                 {_, [to|ToAddr], Message, [tws|FromAddr]} ->
                     %% got link rejection message
 
                     %% decode any possible AMD messages
                     {ok, AMDMessageList} = amd_decode(Message, []),
 
-                    %% Send to user if they are connected
-                    ok = amd_notify(AMDMessageList),
-
                     %% handle other message types here
 
                     %% cleanup addresses / strip off the fill characters
-                    To = string:strip(ToAddr,both,$@),
-                    From = string:strip(FromAddr,both,$@), 
-                    MyAddress = radio_db:read_config(id),
+                    To = string:strip(ToAddr,right,$@),
+                    From = string:strip(FromAddr,right,$@), 
 
-                    case {To, From} of
-                        { MyAddress, CallAddress } ->
+                    %% Send to user if they are connected
+                    ok = spawn_amd_notify(From,AMDMessageList),
+
+
+                    case {To, OtherAddress} of
+                        { MyAddress, From } ->
                             lager:notice("got link rejection from ~p BER: ~p", [FromAddr, Ber]),
-                            next_state_idle(State);
+                            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+                            NewState=State#state{sound_timer_ref=SndTimerRef},                             
+                            next_state_idle(NewState);
                         _Others ->
                             lager:notice("heard termination message; not for us: ~p BER: ~p", [{Calling, Message, Conclusion}, Ber]),
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},							
-                            NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},
+                            NewMessageState = #msg_state{},
+                            NewState = State#state{other_address=OtherAddress, message_state=NewMessageState, timeout=Timeout},
                             {next_state, call_wait_handshake_response, NewState, Timeout}							
                     end;
                 {outbound, [to|ToAddr], Message, [tis|FromAddr]} ->
@@ -1044,37 +1370,54 @@ call_wait_handshake_response({rx_word, Word}, State=#state{ link_state=LinkState
                     %% decode any possible AMD messages
                     {ok, AMDMessageList} = amd_decode(Message, []),
 
-                    %% Send to user if they are connected
-                    ok = amd_notify(AMDMessageList),
-
                     %% handle other message types here
 
                     %% cleanup addresses / strip off the fill characters
-                    To = string:strip(ToAddr,both,$@),
-                    From = string:strip(FromAddr,both,$@), 
-                    MyAddress = radio_db:read_config(id),
+                    To = string:strip(ToAddr,right,$@),
+                    From = string:strip(FromAddr,right,$@), 
+
+                    %% Send to user if they are connected
+                    ok = spawn_amd_notify(From,AMDMessageList),
 
                     case {LinkState, To, From} of
-                        { unlinked, MyAddress, CallAddress } ->
+                        { unlinked, MyAddress, OtherAddress } ->
                             lager:notice("[unlinked] got response from ~p BER: ~p", [FromAddr, Ber]),
-                            AckWords = gen_ack(ReplyWithAddress, CallAddress),
+
+                            %% turn off the receiver (only for use with external transmitters)
+                            rx_enable(false),
+                            
+                            {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+                            {ok, on} = transmit_control(State#state.transmit_control, on),                            
+                            AckWords = gen_ack(OtherAddress, ReplyWithAddress),
                             ok = send_words(AckWords), %% queue it up in the front end					
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
+                            %% Workaround for soundcard buffer latency, without it we may truncate our message
+                            %% by turning off the TX before the sound is fully played out.
+                            ok = send_gap(?SOUNDCARD_LATENCY),                            
+                            NextMessageState = #msg_state{},
                             NextStateTimeout = ?ALE_TRW * (length(AckWords) + 1),
-                            NewState = State#state{link_state=unlinked, call_address=CallAddress, message_state=NewMessageState, timeout=NextStateTimeout},
+                            NewState = State#state{link_state=unlinked, other_address=OtherAddress, message_state=NextMessageState, timeout=NextStateTimeout},
                             {next_state, call_ack, NewState, NextStateTimeout};
-                        { linked, MyAddress, CallAddress } ->
+                        { linked, MyAddress, OtherAddress } ->
                             lager:notice("[linked] got response from ~p BER: ~p", [FromAddr, Ber]),
-                            AckWords = gen_ack(ReplyWithAddress, CallAddress),
+
+                            %% turn off the receiver (only for use with external transmitters)
+                            rx_enable(false),
+                            
+                            {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+                            {ok, on} = transmit_control(State#state.transmit_control, on),                            
+                            AckWords = gen_ack(OtherAddress,ReplyWithAddress),
                             ok = send_words(AckWords), %% queue it up in the front end									
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
+                            %% Workaround for soundcard buffer latency, without it we may truncate our message
+                            %% by turning off the TX before the sound is fully played out.
+                            ok = send_gap(?SOUNDCARD_LATENCY),                            
+                            NextMessageState = #msg_state{},
                             NextStateTimeout = ?ALE_TRW * (length(AckWords) + 1),
-                            NewState=State#state{link_state=linked, call_address=CallAddress, message_state=NewMessageState, timeout=NextStateTimeout},
+                            NewState=State#state{link_state=linked, other_address=OtherAddress, message_state=NextMessageState, timeout=NextStateTimeout},
                             {next_state, call_ack, NewState, NextStateTimeout};	
                         _Others ->
-                            lager:notice("heard response message; not for us: ~p BER: ~p", [{Calling, Message, Conclusion}, Ber]),
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},							
-                            NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},
+                            lager:notice("heard response message; not for us: ~p BER: ~p", [{To, Message, From}, Ber]),
+                            NextMessageState = #msg_state{},
+                            NewState = State#state{other_address=OtherAddress, message_state=NextMessageState, timeout=Timeout},
                             {next_state, call_wait_handshake_response, NewState, Timeout}
                     end;	
                 {inbound, [to|ToAddr], Message, [tis|FromAddr]} ->
@@ -1083,64 +1426,69 @@ call_wait_handshake_response({rx_word, Word}, State=#state{ link_state=LinkState
                     %% decode any possible AMD messages
                     {ok, AMDMessageList} = amd_decode(Message, []),
 
-                    %% Send to user if they are connected
-                    ok = amd_notify(AMDMessageList),
-
-                    %% handle other message types here
-
                     %% cleanup addresses / strip off the fill characters
-                    To = string:strip(ToAddr,both,$@),
-                    From = string:strip(FromAddr,both,$@), 
-                    MyAddress = radio_db:read_config(id),
+                    To = string:strip(ToAddr,right,$@),
+                    From = string:strip(FromAddr,right,$@), 
 
                     case {LinkState, To, From} of
-                        { unlinked, MyAddress, CallAddress } ->
+                        { unlinked, MyAddress, OtherAddress } ->
                             lager:notice("got acknowledge from ~p BER: ~p", [FromAddr, Ber]),
-                            % wait for complete
-                            % alert user and unmute speaker
-                            lager:notice("ALE call handshake complete. ~p", [CallAddress]),
-                            lager:debug("TODO: notify HMI of linking"),
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                            NewState=State#state{link_state=linked, call_address=CallAddress, message_state=NewMessageState, timeout=?ALE_TWA},
+                            % TODO:  alert user and unmute speaker
+
+                            %% Send to user if they are connected
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% handle other message types here
+
+                            lager:notice("ALE call handshake complete. ~p", [OtherAddress]),
+                            spawn_notify_ale_event(ale_inbound_call_linked, {data,list_to_binary(OtherAddress)}),                            
+                            NextMessageState = #msg_state{},
+                            NewState=State#state{link_state=linked, other_address=OtherAddress, message_state=NextMessageState, timeout=?ALE_TWA},
                             {next_state, call_linked, NewState, ?ALE_TWA};
-                        { linked, MyAddress, CallAddress } ->
+                        { linked, MyAddress, OtherAddress } ->
                             lager:notice("got acknowledge from ~p BER: ~p", [FromAddr, Ber]),
-                            lager:notice("ALE message handshake complete. ~p", [CallAddress]),
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                            NewState=State#state{link_state=linked, call_address=CallAddress, message_state=NewMessageState, timeout=?ALE_TWA},
+                            lager:notice("ALE message handshake complete. ~p", [OtherAddress]),
+
+                            %% Send to user if they are connected
+                            ok = spawn_amd_notify(From,AMDMessageList),
+                            %% handle other message types here
+
+                            NextMessageState = #msg_state{},
+                            NewState=State#state{link_state=linked, other_address=OtherAddress, message_state=NextMessageState, timeout=?ALE_TWA},
                             {next_state, call_linked, NewState, ?ALE_TWA};							
                         _Others ->
                             lager:notice("heard response message; not for us: ~p BER: ~p", [{Calling, Message, Conclusion}, Ber]),
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                            NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},
+                            NextMessageState = #msg_state{},
+                            NewState = State#state{other_address=OtherAddress, message_state=NextMessageState, timeout=Timeout},
                             {next_state, call_wait_handshake_response, NewState, Timeout}
                     end;									
                 {_, [], [], [tws|FromAddr]} ->
                     %% got sounding
 
                     %% cleanup addresses / strip off the fill characters
-                    From = string:strip(lists:flatten(FromAddr),both,$@),
+                    From = string:strip(lists:flatten(FromAddr),right,$@),
                     Freq = radio_db:read_config(current_freq),
-                    rx_sound_complete(Freq, [], [tws|From], {Ber,Sinad}, []),
-                    NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                    NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},					
+                    spawn_store_lqa_and_report(Freq, [], [tws|From], {Ber,Sinad}, []),
+                    NextMessageState = #msg_state{},
+                    NewState = State#state{other_address=OtherAddress, message_state=NextMessageState, timeout=Timeout},					
                     {next_state, call_wait_handshake_response, NewState, Timeout};					
                 Others ->
                     lager:warning("call_wait_handshake_response: improper message sections: ~p",[Others]),
-                    NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                    NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},
+                    NextMessageState = #msg_state{},
+                    NewState = State#state{other_address=OtherAddress, message_state=NextMessageState, timeout=Timeout},
                     {next_state, call_wait_handshake_response, NewState, Timeout}
             end;
         incomplete ->
-            NewMessageState = {Status, Section, Calling, Message, Conclusion, LastType, LastBadVotes, WordCount},
-            NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},
+            % NewMessageState = {Status, Section, Calling, Message, Conclusion, LastType, LastBadVotes, WordCount},
+            NewState = State#state{message_state=NewMessageState, timeout=Timeout},
             {next_state, call_wait_handshake_response, NewState, Timeout}
     end;
 call_wait_handshake_response(timeout, State=#state{link_state=LinkState}) ->
     case LinkState of
         unlinked ->
             lager:warning("IMPLEMENT ME: call response timeout, alert user"),
-            next_state_idle(State);
+            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+            NewState=State#state{sound_timer_ref=SndTimerRef},             
+            next_state_idle(NewState);
         linked ->
             lager:warning("incomplete handshake"),
             lager:debug("IMPLEMENT ME: send notification to HMI"),
@@ -1151,61 +1499,149 @@ call_wait_handshake_response(timeout, State=#state{link_state=LinkState}) ->
 %%
 %% Wait for ACK to complete
 %%
-call_ack({rx_word, Word}, State=#state{timeout=Timeout}) ->
+call_ack({rx_word, Word}, State=#state{timeout=Timeout, eot=Eot}) ->
     <<DataLinkCtrl:2,_BadVotes:6,_Type:3,_C1:7,_C2:7,_C3:7>> = <<Word:32>>,
-    %% FIXME: add case fpr ALE_DATALINK_EOT
-    case DataLinkCtrl of 
-        ?ALE_DATALINK_PHA ->
+    case {DataLinkCtrl, Eot} of
+        {?ALE_DATALINK_EOT, _} ->
+            %% Time to turn off transmitter and switch back to RX
+            {ok, off} = transmit_control(State#state.transmit_control, off),
+            {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+            %% turn on the receiver (only for use with external transmitters)
+            rx_enable(true),
+            
             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-                                                % lager:info("call_ack: NextTimeout=~p",[NextTimeout]),
-            NewState=State#state{timeout=NextTimeout},
+            NewState=State#state{timeout=NextTimeout, eot=true},
+            tx_complete(),
             {next_state, call_ack, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOT, _, true} ->
+        %     %% Time to turn off transmitter and switch back to RX
+        %     {ok, off} = transmit_control(State#state.transmit_control, off),
+        %     {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+        %     %% turn on the receiver (only for use with external transmitters)
+        %     rx_enable(true),
+            
+        %     % %% And tell user (if connected) that ALE transmission is complete     
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout, eot=true},
+        %     %% don't sent tx_complete() event yet
+        %     {next_state, call_ack, NewState, NextTimeout};            
+        % {?ALE_DATALINK_PHA, _,_} ->
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_ack, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOF, false,_} ->
+        %     %% We haven't yet received the EOT, so this is probably an inter-message gap
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_ack, NewState, NextTimeout};        
+        % {?ALE_DATALINK_EOF, true,_} ->
+        %     %% We already heard the EOT, send complete message to ourself
+        %     tx_complete(),
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_ack, NewState, NextTimeout};
         _Other ->
-            lager:warning("got rx_word ~8.16.0b while waiting for TX complete!",[Word]),
+            lager:warning("got rx_word ~8.16.0b while waiting for TX complete!", [Word]),
             {next_state, call_ack, State, Timeout}
 		end;
-call_ack({tx_complete}, State=#state{link_state=LinkState, call_address=CallAddress}) ->
+call_ack({tx_complete}, State=#state{link_state=LinkState, other_address=OtherAddress}) ->
     case LinkState of
         unlinked ->
-                                                % wait for complete
-                                                % alert user and unmute speaker
-            lager:notice("ALE call handshake complete. Linked with ~p", [CallAddress]),
-            lager:debug("TODO: notify HMI of linking");
+            % TODO: alert user and unmute speaker
+            lager:notice("ALE call handshake complete. Linked with ~p", [OtherAddress]),
+            spawn_notify_ale_event(ale_outbound_call_linked, {data,list_to_binary(OtherAddress)});            
         linked ->
             lager:notice("ALE msg handshake complete."),
-            lager:debug("TODO: notify HMI of message \"read\"")
+            spawn_notify_ale_event(ale_msg_success, {data,list_to_binary(OtherAddress)})
     end,
     NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-    NewState=State#state{call_address=CallAddress, message_state=NewMessageState, timeout=?ALE_TWA},
+    NewState=State#state{other_address=OtherAddress, message_state=NewMessageState, timeout=?ALE_TWA},
     {next_state, call_linked, NewState, ?ALE_TWA};
 call_ack(timeout, State) ->
+    {ok, off} = transmit_control(State#state.transmit_control, off),
+    {ok, scan} = tuner_control(State#state.tuner_control, scan),
+    abort_tx(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+    
+    spawn_tell_user_eot(),
     lager:error("call_ack: datalink timeout: check modem!"),
-    next_state_idle(State).	
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState=State#state{sound_timer_ref=SndTimerRef},     
+    next_state_idle(NewState).	
 
 %%
 %% Wait for transmitted response to complete
 %%
-call_wait_response_tx_complete({rx_word, Word}, State=#state{timeout=Timeout}) ->
+call_wait_response_tx_complete({rx_word, Word}, State=#state{timeout=Timeout, eot=Eot}) ->
     <<DataLinkCtrl:2,_BadVotes:6,_Type:3,_C1:7,_C2:7,_C3:7>> = <<Word:32>>,
-    %% FIXME: add case fpr ALE_DATALINK_EOT    
-    case DataLinkCtrl of 
-        ?ALE_DATALINK_PHA ->
+    case {DataLinkCtrl, Eot} of
+        {?ALE_DATALINK_EOT, _} ->
+            %% Time to turn off transmitter and switch back to RX
+            {ok, off} = transmit_control(State#state.transmit_control, off),
+            {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+            %% turn on the receiver (only for use with external transmitters)
+            rx_enable(true),
+            
             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-                                                % lager:info("call_wait_response_tx_complete: NextTimeout=~p",[NextTimeout]),
-            NewState=State#state{timeout=NextTimeout},
+            NewState=State#state{timeout=NextTimeout, eot=true},
+            tx_complete(),
             {next_state, call_wait_response_tx_complete, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOT, _, true} ->
+        %     %% Time to turn off transmitter and switch back to RX
+        %     {ok, off} = transmit_control(State#state.transmit_control, off),
+        %     {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+        %     %% turn on the receiver (only for use with external transmitters)
+        %     rx_enable(true),
+            
+        %     % %% And tell user (if connected) that ALE transmission is complete     
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout, eot=true},
+        %     %% don't sent tx_complete() event yet
+        %     {next_state, call_wait_response_tx_complete, NewState, NextTimeout};            
+        % {?ALE_DATALINK_PHA, _,_} ->
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_wait_response_tx_complete, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOF, false,_} ->
+        %     %% We haven't yet received the EOT, so this is probably an inter-message gap
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_wait_response_tx_complete, NewState, NextTimeout};        
+        % {?ALE_DATALINK_EOF, true,_} ->
+        %     %% We already heard the EOT, send complete message to ourself
+        %     tx_complete(),
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_wait_response_tx_complete, NewState, NextTimeout};
         _Other ->
             lager:warning("got rx_word ~8.16.0b while waiting for TX complete!", [Word]),
             {next_state, call_wait_response_tx_complete, State, Timeout}
 		end;
-call_wait_response_tx_complete({tx_complete}, State=#state{call_address=CallAddress}) ->
-                                                % wait for complete
-    NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-    NewState=State#state{call_address=CallAddress, message_state=NewMessageState, timeout=?ALE_TWRT},
-    {next_state, call_wait_handshake_response, NewState, ?ALE_TWRT};
+call_wait_response_tx_complete({tx_complete}, State=#state{wait_for_reply_time=WaitForReplyTime}) ->
+    %% wait for complete
+    spawn_tell_user_eot(),
+    NewMessageState = #msg_state{},
+    NewState=State#state{message_state=NewMessageState, timeout=WaitForReplyTime},
+    {next_state, call_wait_handshake_response, NewState, WaitForReplyTime};
 call_wait_response_tx_complete(timeout, State) ->
-    lager:error("call_wait_response_tx_complete: datalink timeout: check modem!"),
-    next_state_idle(State).
+    {ok, off} = transmit_control(State#state.transmit_control, off),
+    {ok, scan} = tuner_control(State#state.tuner_control, scan),
+    abort_tx(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+    
+    spawn_tell_user_eot(),
+    lager:error("call_wait_response_tx_complete: tx timeout! Check hardware!"),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState=State#state{sound_timer_ref=SndTimerRef},     
+    next_state_idle(NewState).
 
 get_msg_type(C1) ->
     <<Type:2,_Rest:5>> = <<C1:7>>,
@@ -1225,12 +1661,45 @@ amd_decode([[cmd_amd|Message]|Rest], MessageList) ->
 amd_decode([_OtherType|Rest], MessageList) ->
     amd_decode(Rest, MessageList).
 
-%% Decode and create list of all AMD messages received within frame (there can be more than one)
-amd_notify([]) ->
+%%
+%% Little helper to join list of amd messages into a longer list with newlines
+%%
+join([], _) -> [];
+join([List|Lists], Separator) ->
+     lists:flatten([List | [[Separator,Next] || Next <- Lists]]).
+
+% spawn_amd_notify_termination(OtherAddress, AMDMessageList) ->
+%     AMDMessages = join(AMDMessageList,$\n),
+%     _Pid = spawn(ale, amd_notify_termination, [OtherAddress, AMDMessages]).
+
+% amd_notify_termination(OtherAddress, AMDMessages) ->
+%     case whereis(backend_handler) of
+%         undefined -> lager:info("backend_handler not registered");
+%         _ ->
+%             % lager:debug("~p",[[{event,Event},{data, Data}]]),
+%             AMDBin = list_to_binary(AMDMessages),
+%             Msg = backend_handler:build_response([{event,amd_notify_termination},{data,AMDBin}]),
+%             backend_handler ! {data, Msg}
+%     end.    
+
+spawn_amd_notify(_OtherAddress, []) ->
     ok;
-amd_notify([Message|Rest]) ->
-    lager:warning("IMPLEMENT ME: send AMD:~p event to HMI if connected", [Message]),
-    amd_notify(Rest).
+spawn_amd_notify(OtherAddress, AMDMessageList) ->
+    _Pid = spawn(ale, amd_notify, [OtherAddress, AMDMessageList]),
+    ok.
+
+amd_notify(_OtherAddress, []) ->
+    ok;
+amd_notify(OtherAddress, [Message|Rest]) ->
+    lager:notice("AMD from ~p:~p to HMI if connected", [OtherAddress, Message]),
+    case whereis(backend_handler) of
+        undefined -> lager:info("backend_handler not registered");
+        _ ->
+            AMDBin = list_to_binary(Message),
+            Msg = backend_handler:build_response([{event,ale_inbound_msg},{data,jsx:encode([{address, list_to_binary(OtherAddress)},{message, AMDBin}])}]),
+            backend_handler ! {data, Msg}
+    end,
+    amd_notify(OtherAddress, Rest).
 
 
 substitute_chars_by_type([cmd_amd|Rest]) when length(Rest) < ?ALE_MAX_AMD_LENGTH ->
@@ -1259,17 +1728,6 @@ find_longest_conclusion(LongestAddr, [Addr|Rest]) when length(Addr) > length(Lon
 find_longest_conclusion(LongestAddr, [_Addr|Rest]) ->
     find_longest_conclusion(LongestAddr, Rest).
 
-
-                                                % select_most_complete_conclusion(Type, [], New) ->
-                                                % 	lager:debug("selecting new address (no prior)"),
-                                                % 	[Type, New];
-                                                % select_most_complete_conclusion(Type, [Type|Orig], New) when length(Orig) > length(New) ->
-                                                % 	lager:debug("selecting original address (new is shorter) ~p ~p", [Type,Orig]),
-                                                % 	[Type|Orig];
-                                                % select_most_complete_conclusion(Type, [Type|Orig], New) ->
-                                                % 	lager:debug("selecting new address (new is same or longer)"),
-                                                % 	[Type, New].
-
 %%
 %% Receive ALE message, one word at a time. Validate characters, word
 %% ordering, collects message sections, and track message state.
@@ -1286,35 +1744,38 @@ receive_msg(Word, MsgState) ->  %{Status, Section, Calling, Message, Conclusion,
 
     %% FIXME: add case fpr ALE_DATALINK_EOT
     case DataLinkCtrl of 
-        ?ALE_DATALINK_PHA ->
-            %% word phase tick (marks place the decoder expected to get a valid word, but didn't)
-            lager:debug("got PHA marker"),
-            NewWordCount = MsgState#msg_state.word_count + 1,
-            NewBadVotes = MsgState#msg_state.last_bad_votes + 48, %% all bits lost	
-            case {MsgState#msg_state.section, MsgState#msg_state.last_type, Type} of
-                { idle, _, _} ->
-                    MsgState;
-                { message, _, _ } ->
-                    NewMessage = substitute_chars(MsgState#msg_state.message),
-                    MsgState#msg_state{	message=NewMessage, 
-                                        conclusion=[], 
-                                        last_type=Type, 
-                                        last_bad_votes=NewBadVotes, 
-                                        word_count=NewWordCount};
+        ?ALE_DATALINK_EVT ->
+            lager:debug("got event word. Ignoring for now..."),
+            MsgState;
+        % ?ALE_DATALINK_PHA ->
+        %     %% word phase tick (marks place the decoder expected to get a valid word, but didn't)
+        %     lager:debug("got PHA marker"),
+        %     NewWordCount = MsgState#msg_state.word_count + 1,
+        %     NewBadVotes = MsgState#msg_state.last_bad_votes + 48, %% all bits lost	
+        %     case {MsgState#msg_state.section, MsgState#msg_state.last_type, Type} of
+        %         { idle, _, _} ->
+        %             MsgState;
+        %         { message, _, _ } ->
+        %             NewMessage = substitute_chars(MsgState#msg_state.message),
+        %             MsgState#msg_state{	message=NewMessage, 
+        %                                 conclusion=[], 
+        %                                 last_type=Type, 
+        %                                 last_bad_votes=NewBadVotes, 
+        %                                 word_count=NewWordCount};
 
-                _Others -> 
-                    % lager:notice("~p",[{Status, Section, Calling, Message, Conclusion, Type, NewBadVotes, NewWordCount, NextTimeout}]),
+        %         _Others -> 
+        %             % lager:notice("~p",[{Status, Section, Calling, Message, Conclusion, Type, NewBadVotes, NewWordCount, NextTimeout}]),
                     
-                    %% XXX FIXME NOTE: Is it "normal" to get stuck in
-                    %% a non-idle state waiting for completion??? It
-                    %% recovers when any new message is received.
-                    MsgState#msg_state{	%last_type=Type,
-                      section=idle,
-                      conclusion=[], 
-                      last_bad_votes=NewBadVotes, 
-                      word_count=NewWordCount}
+        %             %% XXX FIXME NOTE: Is it "normal" to get stuck in
+        %             %% a non-idle state waiting for completion??? It
+        %             %% recovers when any new message is received.
+        %             MsgState#msg_state{	%last_type=Type,
+        %               section=idle,
+        %               conclusion=[], 
+        %               last_bad_votes=NewBadVotes, 
+        %               word_count=NewWordCount}
 
-            end;
+        %     end;
         ?ALE_DATALINK_EOF ->
             lager:info("got ALE_DATALINK_EOF: Frequency=~p, SINAD=~p", [Frequency, Sinad]),
             MsgState#msg_state{ status=complete, 
@@ -1695,86 +2156,120 @@ receive_msg(Word, MsgState) ->  %{Status, Section, Calling, Message, Conclusion,
 
 next_state_idle(State) ->
     NewMessageState = #msg_state{},
-    NewState = State#state{link_state=unlinked, call_address=[], message_state=NewMessageState, eot=false},
+    NewState = State#state{link_state=unlinked, other_address=[], message_state=NewMessageState, eot=false},
     {next_state, idle, NewState}.
 
 %%
 %% Call linked
 %%
-%% handle rx soundings
-%% handle rx terminate
-%%
-%% Calling, [], Conclusion
-%% Calling, Message, Conclusion
-%% [], [], Conclusion
 call_linked({call, _Address, _Type, _Message}, State) ->
     %% currently we only support one link at a time (could be a group or net call, but still only one)
     lager:error("already linked"),
     {next_state, call_linked, State, ?ALE_TWA};
-call_linked({link_terminate, AMDMessage}, State=#state{call_address=CallAddress}) ->
-    lager:notice("terminating link with ~p",[CallAddress]),
-    TermWords = gen_terminate(CallAddress, AMDMessage),
+call_linked({link_terminate, AMDMessage}, State=#state{other_address=OtherAddress,reply_with_address=ReplyWithAddress}) ->
+    lager:notice("terminating link with ~p",[OtherAddress]),
+
+    %% turn off the receiver (only for use with external transmitters)
+    rx_enable(false),
+    
+    {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+    {ok, on} = transmit_control(State#state.transmit_control, on),    
+    TermWords = gen_terminate(OtherAddress,ReplyWithAddress,AMDMessage),
     ok = send_words(TermWords),
+    %% Workaround for soundcard buffer latency, without it we may truncate our message
+    %% by turning off the TX before the sound is fully played out.
+    ok = send_gap(?SOUNDCARD_LATENCY),
+    
     NextTimeout = length(TermWords) * (?ALE_TRW * 2),
-    NextState = State#state{call_address=CallAddress, timeout=NextTimeout},
+    NextState = State#state{timeout=NextTimeout},
     {next_state, call_linked_wait_terminate, NextState, NextTimeout};
-call_linked({amd, AMDMessage}, State=#state{call_address=CallAddress}) ->
-    Words = gen_call(?ALE_WORD_TYPE_TIS, CallAddress, non_scanning, AMDMessage),
+call_linked({amd, AMDMessage}, State=#state{other_address=OtherAddress, reply_with_address=ReplyWithAddress}) ->
+
+    %% turn off the receiver (only for use with external transmitters)
+    rx_enable(false),
+
+    {ok, tuned} = tuner_control(State#state.tuner_control, tuned),
+    {ok, on} = transmit_control(State#state.transmit_control, on),
+    Words = gen_call(?ALE_WORD_TYPE_TIS, OtherAddress, ReplyWithAddress, non_scanning, AMDMessage),
     ok = send_words(Words), %% queue it up in the front end	
+    %% Workaround for soundcard buffer latency, without it we may truncate our message
+    %% by turning off the TX before the sound is fully played out.
+    ok = send_gap(?SOUNDCARD_LATENCY),
+    
     NextTimeout = ?ALE_TRW * (length(Words) + 1),
-    NewState = State#state{link_state=linked, call_dir=outbound, call_address=CallAddress, timeout=NextTimeout},
+    NewState = State#state{link_state=linked, call_dir=outbound, timeout=NextTimeout},
     {next_state, call_wait_tx_complete, NewState, NextTimeout};
-call_linked({rx_word, Word}, State=#state{  call_address=CallAddress, 
+call_linked({rx_word, Word}, State=#state{  other_address=OtherAddress, 
+                                            self_address=MyAddress,
                                             reply_with_address=ReplyWithAddress,
                                             message_state=MessageState, 
                                             timeout=Timeout}) ->
-    {Status, Section, Calling, Message, Conclusion, LastType, LastBadVotes, WordCount,{Sinad,Frequency}} = 
-        receive_msg(Word, MessageState),
+        NewMessageState = receive_msg(Word, MessageState),
 
-                                                % lager:info("call_linked NextTimeout=~p",[NextTimeout]),
-
-    case Status of 
+    case NewMessageState#msg_state.status of 
         complete ->
-                                                % got a complete message, validate it, then take action
+            %% got a complete message, validate it, then take action
+            LastBadVotes = NewMessageState#msg_state.last_bad_votes,
+            WordCount = NewMessageState#msg_state.word_count,
+            Calling = NewMessageState#msg_state.calling,
+            Message = NewMessageState#msg_state.message,
+            Conclusion = NewMessageState#msg_state.conclusion,
+            Conclusion_List = NewMessageState#msg_state.conclusion_list,
+            BestConclusion = find_longest_conclusion(Conclusion_List),
             Ber = compute_ber(LastBadVotes, WordCount),
-            case {Calling, Message, Conclusion} of
+            Sinad = NewMessageState#msg_state.sinad,
+            Frequency = NewMessageState#msg_state.frequency,
+
+            %% cleanup addresses / strip off the fill characters
+            % [ToSection|ToAddr] = Calling,
+            % [FromSection|FromAddr] = BestConclusion, 
+            
+            case {Calling, Message, BestConclusion} of
                 {[to|ToAddr], Message, [tws|FromAddr]} ->
+                    %% cleanup addresses / strip off the fill characters
+                    To = string:strip(ToAddr,right,$@),
+                    From = string:strip(FromAddr,right,$@), 
 
                     %% got link termination message
 
                     %% handle any possible AMD messages
-                    ok = amd_decode(Message, []),
+                    {ok,AMDMessageList} = amd_decode(Message, []),
 
                     %% handle other message types here
+                    IsForMe = lists:member(To, [MyAddress, "?@?"]),
+                    IsFromLinkedStation = From == OtherAddress,
+                    case {IsForMe, IsFromLinkedStation} of
+                        { true, true } ->
+                            %% Send to user if they are connected
+                            ok = spawn_amd_notify(OtherAddress,AMDMessageList),
 
-                    %% cleanup addresses / strip off the fill characters
-                    To = string:strip(ToAddr,both,$@),
-                    From = string:strip(FromAddr,both,$@), 
-                    MyAddress = radio_db:read_config(id),
-
-                    case {To, From} of
-                        { MyAddress, CallAddress } ->
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, To, [tws|From], {Ber,Sinad}, AMDMessageList),
                             lager:notice("got link termination from ~p BER: ~p", [FromAddr, Ber]),
+                            spawn_notify_ale_event(ale_call_unlinked, {data,list_to_binary(OtherAddress)}),                            
+                            
                             next_state_idle(State);
                         _Others ->
                             lager:notice("heard termination message; not for us: ~p BER: ~p", [{Calling, Message, Conclusion}, Ber]),
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, To, [tws|From], {Ber,Sinad}, AMDMessageList),
                             next_state_idle(State)					
                     end;
                 {[to|ToAddr], Message, [tis|FromAddr]} ->
 
                     %% cleanup addresses / strip off the fill characters
-                    To = string:strip(ToAddr,both,$@),
-                    From = string:strip(FromAddr,both,$@), 
-                    MyAddress = radio_db:read_config(id),
+                    To = string:strip(ToAddr,right,$@),
+                    From = string:strip(FromAddr,right,$@), 
 
                     %%
                     %% FIXME: if this was a net call linkup, then we must always respond in the correct slot. One
                     %% solution might be to always use net_slot to decide when to reply, and for individual calls
                     %% this is just 0 (zero).
                     %%
-
-                    case {To, From} of
-                        { MyAddress, From } ->
+                    IsForMe = lists:member(To, [MyAddress, "?@?"]),
+                    IsFromLinkedStation = From == OtherAddress,
+                    case {IsForMe, IsFromLinkedStation} of
+                        { true, true } ->
                             %% got message while linked
                             lager:notice("got message from ~p BER: ~p", [FromAddr, Ber]),
 
@@ -1782,23 +2277,27 @@ call_linked({rx_word, Word}, State=#state{  call_address=CallAddress,
                             {ok, AMDMessageList} = amd_decode(Message, []),
 
                             %% Send to user if they are connected
-                            ok = amd_notify(AMDMessageList),
+                            ok = spawn_amd_notify(From,AMDMessageList),
+
+                            %% log / report
+                            spawn_store_lqa_and_report(Frequency, To, [tis|From], {Ber,Sinad}, AMDMessageList),
 
                             %% handle other message types here
 
                             %% send ack
-                            AckWords = gen_ack(ReplyWithAddress,From),
+                            AckWords = gen_ack(From, ReplyWithAddress),
                             ok = send_words(AckWords), %% queue it up in the front end					
-                                                % wait for complete
-                                                % alert user and unmute speaker
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
+                            %% Workaround for soundcard buffer latency, without it we may truncate our message
+                            %% by turning off the TX before the sound is fully played out.
+                            ok = send_gap(?SOUNDCARD_LATENCY),
+                            
+                            NextMessageState = #msg_state{},
                             NextStateTimeout = ?ALE_TRW * (length(AckWords) + 1),
-                            NewState = State#state{link_state=linked, call_dir=inbound, call_address=From, message_state=NewMessageState, timeout=NextStateTimeout},
+                            NewState = State#state{link_state=linked, call_dir=inbound, other_address=From, message_state=NextMessageState, timeout=NextStateTimeout},
                             {next_state, call_wait_response_tx_complete, NewState, NextStateTimeout};
                         _Others ->
                             lager:notice("heard message; not for us: ~p BER: ~p", [{Calling, Message, Conclusion}, Ber]),
-                                                % NewMessageState = {incomplete, Section, Calling, Message, Conclusion, LastType, LastBadVotes, WordCount},
-                            NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
+                            NewMessageState = #msg_state{},
                             NewState = State#state{message_state=NewMessageState, timeout=?ALE_TWA},
                             {next_state, call_linked, NewState, ?ALE_TWA}
                     end;	
@@ -1809,89 +2308,97 @@ call_linked({rx_word, Word}, State=#state{  call_address=CallAddress,
                     %%
 
                     %% cleanup addresses / strip off the fill characters
-                    From = string:strip(lists:flatten(FromAddr),both,$@),
-                                                % Freq = radio_db:read_config(Frequency),
-                    rx_sound_complete(Frequency, [], [tws|From], {Ber,Sinad}, []),
-                    NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                    NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},					
+                    spawn_store_lqa_and_report(Frequency, [], [tws|FromAddr], {Ber,Sinad}, []),
+                    NextMessageState = #msg_state{},
+                    NewState = State#state{other_address=OtherAddress, message_state=NextMessageState, timeout=Timeout},					
                     {next_state, call_linked, NewState, Timeout};					
                 Others ->
                     %% error, got nothing
                     lager:warning("call_linked: improper message sections: ~p",[Others]),
-                    NewMessageState = #msg_state{},%NewMessageState = {incomplete, idle, [], [], [], none, 0, 0},
-                    NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},
+                    NextMessageState = #msg_state{},
+                    NewState = State#state{other_address=OtherAddress, message_state=NextMessageState, timeout=Timeout},
                     {next_state, call_linked, NewState, Timeout}
             end;
         incomplete ->
-            NewMessageState = {Status, Section, Calling, Message, Conclusion, LastType, LastBadVotes, WordCount},
-            NewState = State#state{call_address=CallAddress, message_state=NewMessageState, timeout=Timeout},
+            NewState = State#state{other_address=OtherAddress, message_state=NewMessageState, timeout=Timeout},
             {next_state, call_linked, NewState, Timeout}
     end;
+call_linked({current_freq,Freq}, State) ->
+    %% currently we only support one link at a time (could be a group or net call, but still only one)
+    lager:error("user changed changed freq during link -> ~p", [Freq]),
+    {next_state, call_linked, State, ?ALE_TWA};    
 call_linked(timeout, State) ->
-    lager:notice("link idle timeout with ~p", [State#state.call_address]),
-    next_state_idle(State).
+    lager:notice("link idle timeout with ~p", [State#state.other_address]),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState=State#state{sound_timer_ref=SndTimerRef},     
+    next_state_idle(NewState).
 
-
-call_linked_wait_terminate({rx_word, Word}, State=#state{timeout=Timeout}) ->
+call_linked_wait_terminate({rx_word, Word}, State=#state{timeout=Timeout,eot=Eot}) ->
     <<DataLinkCtrl:2,_BadVotes:6,_Type:3,_C1:7,_C2:7,_C3:7>> = <<Word:32>>,
-    %% FIXME: add case fpr ALE_DATALINK_EOT    
-    case DataLinkCtrl of 
-        ?ALE_DATALINK_PHA ->
+   case {DataLinkCtrl, Eot} of
+        {?ALE_DATALINK_EOT, _} ->
+            %% Time to turn off transmitter and switch back to RX
+            {ok, off} = transmit_control(State#state.transmit_control, off),
+            {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+            %% turn on the receiver (only for use with external transmitters)
+            rx_enable(true),
+            
             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-                                                % lager:info("call_linked_wait_terminate: NextTimeout=~p",[NextTimeout]),
-            NewState=State#state{timeout=NextTimeout},
+            NewState=State#state{timeout=NextTimeout, eot=true},
+            tx_complete(),
             {next_state, call_linked_wait_terminate, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOT, _, true} ->
+        %     %% Time to turn off transmitter and switch back to RX
+        %     {ok, off} = transmit_control(State#state.transmit_control, off),
+        %     {ok, scan} = tuner_control(State#state.tuner_control, scan),
+
+        %     %% turn on the receiver (only for use with external transmitters)
+        %     rx_enable(true),
+            
+        %     % %% And tell user (if connected) that ALE transmission is complete     
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout, eot=true},
+        %     %% don't sent tx_complete() event yet
+        %     {next_state, call_linked_wait_terminate, NewState, NextTimeout};               
+        % {?ALE_DATALINK_PHA, _, _} ->
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_linked_wait_terminate, NewState, NextTimeout};
+        % {?ALE_DATALINK_EOF, false,_} ->
+        %     %% We haven't yet received the EOT, so this is probably an inter-message gap
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_linked_wait_terminate, NewState, NextTimeout};        
+        % {?ALE_DATALINK_EOF, true,_} ->
+        %     %% We already heard the EOT, send complete message to ourself
+        %     tx_complete(),
+        %     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+        %     NewState=State#state{timeout=NextTimeout},
+        %     {next_state, call_linked_wait_terminate, NewState, NextTimeout};
         _Other ->
-            lager:warning("got rx_word ~8.16.0b while waiting for TX complete!",[Word]),
-            {next_state, call_linked_wait_terminate, State, Timeout}
+            lager:debug("got rx_word ~8.16.0b while waiting for TX complete!", [Word]),
+            {next_state, call_linked_wait_terminate, State}            
 		end;
 call_linked_wait_terminate({tx_complete}, State) ->
     lager:notice("link terminated"),
-    next_state_idle(State);
+    spawn_tell_user_eot(),    
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState=State#state{sound_timer_ref=SndTimerRef}, 
+    next_state_idle(NewState);
 call_linked_wait_terminate(timeout, State) ->
+    {ok, off} = transmit_control(State#state.transmit_control, off),
+    {ok, scan} = tuner_control(State#state.tuner_control, scan),
+    abort_tx(),
+
+    %% turn on the receiver (only for use with external transmitters)
+    rx_enable(true),
+    
+    spawn_tell_user_eot(),
     lager:error("datalink timeout during link termination"),
-    next_state_idle(State).
-
-% tx_sounding({rx_word, Word}, State=#state{timeout=Timeout, eot=SoundEot}) ->
-%     <<DataLinkCtrl:2,_BadVotes:6,_Type:3,_C1:7,_C2:7,_C3:7>> = <<Word:32>>,
-%     case {DataLinkCtrl, SoundEot} of 
-%         {?ALE_DATALINK_EOT, _} ->
-%             %% Time to turn off transmitter and switch back to RX
-%             ok = transmit_control_tx(off),
-%             ok = tuner_control(scan),
-%             %% And tell user (if connected) that ALE transmission is complete     
-%             tell_user_eot(),
-
-%             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-%             NewState=State#state{timeout=NextTimeout, eot=true},
-%             %% Stay in this state until we hear our own EOF
-%             {next_state, tx_sounding, NewState, NextTimeout};
-%         {?ALE_DATALINK_PHA, _} ->
-%             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-%             NewState=State#state{timeout=NextTimeout},
-%             {next_state, tx_sounding, NewState, NextTimeout};
-%         {?ALE_DATALINK_EOF, false} ->
-%             %% We haven't yet received the EOT, so this is probably an inter-message gap
-%             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-%             NewState=State#state{timeout=NextTimeout},
-%             {next_state, tx_sounding, NewState, NextTimeout};        
-%         {?ALE_DATALINK_EOF, true} ->
-%             %% We already heard the EOT, send complete message to ourself
-%             tx_complete(),
-%             NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-%             NewState=State#state{timeout=NextTimeout},
-%             {next_state, tx_sounding, NewState, NextTimeout};
-%         _Other ->
-%             lager:debug("got rx_word while waiting for TX complete!"),
-%             {next_state, sounding, State}            
-% 		end;
-% tx_sounding(timeout, State) ->
-%     ok = transmit_control_tx(off),
-%     ok = tuner_control(scan),
-%     lager:error("timeout occurred while waiting for tx_complete"),
-%     next_state_idle(State);      
-% tx_sounding({tx_complete}, State) ->
-%     next_state_idle(State).
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    NewState=State#state{sound_timer_ref=SndTimerRef},     
+    next_state_idle(NewState).
 
 handle_event({ctrl_disconnect}, StateName, State=#state{fnctrl=FnCtrlWord}) ->
     lager:info("got control disconnect"),
@@ -1919,15 +2426,15 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%%===================================================================
 
 %%
-%% Function to determine HFLink reporting smeter string. As per Alen Barrow KM4BA alan@pinztrek.com
+%% Function to determine HFLink reporting smeter string. As per Alan Barrow KM4BA alan@pinztrek.com
 %% BER icon:
-                                                % Smeter icons will be included if the smeter keywork is appended to the
-                                                % frame and in the exact engineering format. They specific keywords should
-                                                % be sent based on the following BER levels:
-                                                %          " smeter4" if ( $line =~ /BER 27|BER 28|BER 29/ );
-                                                %          " smeter3" if ( $line =~ /BER 24|BER 25|BER 26/ );
-                                                %          " smeter2" if ( $line =~ /BER 21|BER 22|BER 23/ );
-                                                %          " smeter1" if ( $line =~ /BER 0\d|BER 1\d|BER 20/ );
+%% Smeter icons will be included if the smeter keywork is appended to the
+%% frame and in the exact engineering format. They specific keywords should
+%% be sent based on the following BER levels:
+%%          " smeter4" if ( $line =~ /BER 27|BER 28|BER 29/ );
+%%          " smeter3" if ( $line =~ /BER 24|BER 25|BER 26/ );
+%%          " smeter2" if ( $line =~ /BER 21|BER 22|BER 23/ );
+%%          " smeter1" if ( $line =~ /BER 0\d|BER 1\d|BER 20/ );
 get_smeter_string(Ber) when Ber > 29->
     "smeter5";
 get_smeter_string(Ber) when Ber > 26->
@@ -1939,17 +2446,19 @@ get_smeter_string(Ber) when Ber > 20->
 get_smeter_string(_Ber) ->
     "smeter1".
 
+
 send_hflink_report(ReportString) ->
     {ok, Result } = httpc:request(post, {"http://hflink.net/log/postit.php", [],
                                          "application/x-www-form-urlencoded", ReportString},[],[]),
     lager:debug("POST Result: ~p",[Result]).
 
-                                                % -spec get_timestamp() -> integer().
-                                                % get_timestamp() ->
-                                                %   {Mega, Sec, Micro} = os:timestamp(),
-                                                %   (Mega*1000000 + Sec)*1000 + round(Micro/1000).
+spawn_send_hflink_report(ReportString) ->
+    _Pid = spawn(ale, send_hflink_report, [ReportString]).
 
-rx_sound_complete(Freq, To, Conclusion, {Ber, Sinad}, Message) ->
+spawn_store_lqa_and_report(Freq, To, Conclusion, {Ber, Sinad}, Message) ->
+    _Pid = spawn(ale, store_lqa_and_report, [Freq, To, Conclusion, {Ber, Sinad}, Message]).
+
+store_lqa_and_report(Freq, To, Conclusion, {Ber, Sinad}, Message) ->
     %% TODO: compute LQA and store in DB?
     %% Filter Id to make sure it is valid??
     [Type|Id] = Conclusion,
@@ -1973,19 +2482,17 @@ rx_sound_complete(Freq, To, Conclusion, {Ber, Sinad}, Message) ->
     Controller = <<"">>, 
     Antenna = <<"">>, 
 
-    %% strip any @ filler characters
-    CleanId = string:strip(Id,both,$@),
-
     %% simple way to weed out invalid or partial callsigns
-                                                % RegExp = "\\d?[a-zA-Z]{1,2}\\d{1,4}[a-zA-Z]{1,4}",
-                                                % case re:run(CleanId, RegExp) of
-    case length(CleanId) >= 3 of
+    %% RegExp = "\\d?[a-zA-Z]{1,2}\\d{1,4}[a-zA-Z]{1,4}",
+    %% case re:run(CleanId, RegExp) of
+
+    case length(Id) >= 3 of
         true ->
             {Megasec,Sec,Micro} = os:timestamp(),
             Timestamp = Megasec * 1000000 + Sec,
 
             %% store it in the contact database
-            Contact = 	#contact{	id 			= list_to_binary(CleanId),
+            Contact = 	#contact{	id 			= list_to_binary(Id),
                                   time 		= Timestamp,
                                   channel 	= Channel,
                                   frequency 	= Freq,
@@ -2025,40 +2532,39 @@ rx_sound_complete(Freq, To, Conclusion, {Ber, Sinad}, Message) ->
 
             %% get myID from database
             MyId = radio_db:read_config(id),
-            ReportHeader = io_lib:format("nick=H2F2N2 ~s&shout=",[MyId]),
+            ReportHeader = io_lib:format("nick=H3F3N3 ~s&shout=",[MyId]),
             Smeter = get_smeter_string(Ber),
-            ReportFooter = io_lib:format("BER+~.2.0w+SN+~.2.0w+~s&email=linker&send=&Submit=send", [Ber, Sinad, Smeter]),
+            ReportFooter = io_lib:format(" BER+~.2.0w+SN+~.2.0w+~s&email=linker&send=&Submit=send", [Ber, Sinad, Smeter]),
             Report = iolist_to_binary(ReportHeader ++ http_uri:encode(Formatted) ++ Message ++ ReportFooter),
             lager:info("HFLink Report: ~p~n", [Report]),
             ReportEnabled = radio_db:read_config(hflink_reporting),
             case ReportEnabled of
                 true ->
-                    _Pid = spawn(ale, send_hflink_report, [Report]);
+                    spawn_send_hflink_report(Report);
                 false ->
                     lager:info("HFLINK Reporting disabled")
             end,
 
             %% if control device is connected, send it the contact and log event
-            case whereis(backend_handler) of
-                undefined -> lager:debug("no control device is connected");
-                _ ->
+            % case whereis(backend_handler) of
+                % undefined -> lager:debug("no control device is connected");
+                % _ ->
                     %% format and send this contact to control device
-                    ContactEJSON = contact:to_json(Contact),
+            ContactEJSON = contact:to_json(Contact),
                     %% build contact message
-                    ContactMsg = backend_handler:build_response([{event,ale_new_contact}, {data, jsx:encode(ContactEJSON)}]),
+            % ContactMsg = backend_handler:build_response([{event,ale_new_contact}, {data, jsx:encode(ContactEJSON)}]),
+            spawn_notify_ale_event(ale_new_contact, {data,jsx:encode(ContactEJSON)}),
                     %% send it
-                    backend_handler ! {data, ContactMsg},
+            % backend_handler ! {data, ContactMsg},
                     %% build log even message
-                    Event = backend_handler:build_response([{event,ale_rx_sound},{data, list_to_binary(Formatted)}]),
+            spawn_notify_ale_event(ale_rx_sound, {data,list_to_binary(Formatted)});
+            % Event = backend_handler:build_response([{event,ale_rx_sound},{data, list_to_binary(Formatted)}]),
                     %% send it
-                    backend_handler ! {data, Event}    
-            end;
+            % backend_handler ! {data, Event};
+            % end;
         false ->
             lager:warning("invalid or partial callsign, ignored")
     end.
-
-                                                % HFLinkReportFrame = "nick=K6DRS&shout=" ++ http_uri()
-                                                % HFLinkReportFrame = 
 
 char_validate38(Chars) ->
     case re:run(Chars, "^[0-9A-Za-z@?]+$") of
@@ -2149,20 +2655,20 @@ build_ale_message(FillChar, Type, Address) ->
 %% resp_req: boolean to indicate the type of sounding (TIS or TWAS)
 %% address: station address for sounding (15 or less characters) in a null terminated string
 %% 
-scanning_sound(ScanTimeMs, true, Address) ->
+gen_scanning_sound(ScanTimeMs, true, Address) ->
     {ok, Words} = build_ale_address($@, ?ALE_WORD_TYPE_TIS, Address),
     % Words = list_to_binary(Words),
-    ScanTimeWords = scanning_sound_rep(Words, length(Words), ScanTimeMs, []),
-    lists:flatten(scanning_sound_rep(Words, length(Words) * ?ALE_TA, 4 * length(Words) * ?ALE_TA, ScanTimeWords));
-scanning_sound(ScanTimeMs, false, Address) ->
+    ScanTimeWords = gen_scanning_sound_rep(Words, length(Words), ScanTimeMs, []),
+    lists:flatten(gen_scanning_sound_rep(Words, length(Words) * ?ALE_TA, 4 * length(Words) * ?ALE_TA, ScanTimeWords));
+gen_scanning_sound(ScanTimeMs, false, Address) ->
     {ok, Words} = build_ale_address($@, ?ALE_WORD_TYPE_TWAS, Address),
     % Words = list_to_binary(Words),
-    ScanTimeWords = scanning_sound_rep(Words, length(Words) * ?ALE_TA, ScanTimeMs, []),
-    lists:flatten(scanning_sound_rep(Words, length(Words) * ?ALE_TA, 4 * length(Words) * ?ALE_TA, ScanTimeWords)).
+    ScanTimeWords = gen_scanning_sound_rep(Words, length(Words) * ?ALE_TA, ScanTimeMs, []),
+    lists:flatten(gen_scanning_sound_rep(Words, length(Words) * ?ALE_TA, 4 * length(Words) * ?ALE_TA, ScanTimeWords)).
 
-scanning_sound_rep(Words, AddrLenMs, ScanTimeMs, SoundWords) when ScanTimeMs > AddrLenMs ->
-    scanning_sound_rep(Words, AddrLenMs, ScanTimeMs - AddrLenMs, [Words|SoundWords]);
-scanning_sound_rep(_Words, _AddrLenMs, _ScanTimeMs, SoundWords) ->	
+gen_scanning_sound_rep(Words, AddrLenMs, ScanTimeMs, SoundWords) when ScanTimeMs > AddrLenMs ->
+    gen_scanning_sound_rep(Words, AddrLenMs, ScanTimeMs - AddrLenMs, [Words|SoundWords]);
+gen_scanning_sound_rep(_Words, _AddrLenMs, _ScanTimeMs, SoundWords) ->	
     SoundWords.
 
 words_to_bin([], Bin) ->
@@ -2196,12 +2702,12 @@ abort_tx() ->
 gen_sound() ->
     %% get this from the DB / config data
     %%% this should be Trw*num_channels + 2*Trw
-    ChannelCount = radio_db:channel_count(),
-    ScanTime = ?ALE_TRW * ChannelCount + ?ALE_TRW * 2,
+    % ChannelCount = radio_db:channel_count(),
+    % ScanTime = ?ALE_TRW * ChannelCount + ?ALE_TRW * 2,
     RespReq = false,
     %% if this isn't set we crash
     MyAddress = radio_db:read_config(id),
-    scanning_sound(ScanTime, RespReq, MyAddress).
+    gen_scanning_sound(?ALE_SCAN_PREAMBLE_TIME, RespReq, MyAddress).
 
 gen_scanning_call_rep(Words, AddrLenMs, ScanTimeMs, CallWords) when ScanTimeMs > AddrLenMs ->
     gen_scanning_call_rep(Words, AddrLenMs, ScanTimeMs - AddrLenMs, [Words | CallWords]);
@@ -2241,38 +2747,34 @@ gen_scanning_call(Terminator, ScanTimeMs, Address, MyAddress, AMDMessage) ->
     CompleteCall = [ScanTimeCall, LeadingCall, MessageWords, FromCall],
     lists:flatten(CompleteCall).
 
-gen_call(Terminator, Address, non_scanning, AMDMessage) ->
+gen_call(Terminator, OtherAddress, SelfAddress, non_scanning, AMDMessage) ->
     ScanTime = 0,
-    MyAddress = radio_db:read_config(id),
-    gen_scanning_call(Terminator, ScanTime, Address, MyAddress, AMDMessage);
-gen_call(Terminator, Address, scanning, AMDMessage) ->
-    ChannelCount = radio_db:channel_count(),
-    ScanTime = ?ALE_TRW * ChannelCount + ?ALE_TRW * 2,
-    MyAddress = radio_db:read_config(id),
-    gen_scanning_call(Terminator, ScanTime, Address, MyAddress, AMDMessage).
+    gen_scanning_call(Terminator, ScanTime, OtherAddress, SelfAddress, AMDMessage);
+gen_call(Terminator, OtherAddress, SelfAddress, scanning, AMDMessage) ->
+    % ChannelCount = radio_db:channel_count(),
+    % ScanTime = ?ALE_TRW * ChannelCount + ?ALE_TRW * 2,
+    gen_scanning_call(Terminator, ?ALE_SCAN_PREAMBLE_TIME, OtherAddress, SelfAddress, AMDMessage).
 
-gen_ack(ReplyWithAddress,ToAddress) ->
+gen_ack(OtherAddress, ReplyWithAddress) ->
     % MyAddress = radio_db:read_config(id),
-    {ok, ToWords} = build_ale_address($@, ?ALE_WORD_TYPE_TO, ToAddress),
+    {ok, ToWords} = build_ale_address($@, ?ALE_WORD_TYPE_TO, OtherAddress),
     LeadingCall = [ToWords, ToWords],
     {ok, FromCall} = build_ale_address($@, ?ALE_WORD_TYPE_TIS, ReplyWithAddress),
     CompleteCall = [LeadingCall, FromCall],
     lists:flatten(CompleteCall).	
 
-gen_terminate(Address, []) ->
-    MyAddress = radio_db:read_config(id),
-    {ok, ToWords} = build_ale_address($@, ?ALE_WORD_TYPE_TO, Address),
+gen_terminate(OtherAddress, SelfAddress, []) ->
+    {ok, ToWords} = build_ale_address($@, ?ALE_WORD_TYPE_TO, OtherAddress),
     LeadingCall = [ToWords, ToWords],
-    {ok, FromCall} = build_ale_address($@, ?ALE_WORD_TYPE_TWAS, MyAddress),
+    {ok, FromCall} = build_ale_address($@, ?ALE_WORD_TYPE_TWAS, SelfAddress),
     CompleteCall = [LeadingCall, FromCall],
     lists:flatten(CompleteCall);	
-gen_terminate(Address, AMDMessage) ->
-    MyAddress = radio_db:read_config(id),
-    {ok, ToWords} = build_ale_address($@, ?ALE_WORD_TYPE_TO, Address),
+gen_terminate(OtherAddress, SelfAddress, AMDMessage) ->
+    {ok, ToWords} = build_ale_address($@, ?ALE_WORD_TYPE_TO, OtherAddress),
     LeadingCall = [ToWords, ToWords],
     %% Validate then add in the AMD message section
     {ok, MessageWords} = build_ale_message($ , ?ALE_WORD_TYPE_CMD, AMDMessage),
-    {ok, FromCall} = build_ale_address($@, ?ALE_WORD_TYPE_TWAS, MyAddress),
+    {ok, FromCall} = build_ale_address($@, ?ALE_WORD_TYPE_TWAS, SelfAddress),
     CompleteCall = [LeadingCall, MessageWords, FromCall],
     lists:flatten(CompleteCall).
 

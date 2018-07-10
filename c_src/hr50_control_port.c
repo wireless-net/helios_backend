@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(band)) { 
 					memcpy(&band, &cmdbuf_i[4], sizeof(band));
 					syslog(LOG_INFO, "set band %d\n", band);
-					if (radioif_set_band(&rif, band)) {
+					if (hr50_set_band(&rif, band)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 				}
 				break;
 			case CMD_GET_BAND:
-				if (radioif_get_band(&rif, &band)) {
+				if (hr50_get_band(&rif, &band)) {
 					res = RET_ERR;
 				} else {
 					syslog(LOG_INFO, "get band %d\n", band);
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(freq)) {
 					memcpy(&freq, &cmdbuf_i[4], sizeof(freq));
 					// syslog(LOG_INFO, "set freq %d\n", write_total);
-					if (radioif_set_freq(&rif, freq)) {
+					if (hr50_set_freq(&rif, freq)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -243,9 +243,10 @@ int main(int argc, char *argv[])
 					syslog(LOG_ERR, "invalid write length for set freq %d\n", write_total);
 					res = RET_ERR;
 				}
+				usleep(250000); // the HR50 tunes REALLY SLOWLY
 				break;
 			case CMD_GET_FREQ:
-				if (radioif_get_freq(&rif, &freq)) {
+				if (hr50_get_freq(&rif, &freq)) {
 					res = RET_ERR;
 				} else {
 					// syslog(LOG_INFO, "get freq %d\n", freq);
@@ -259,7 +260,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(ptt)) {
 					memcpy(&ptt, &cmdbuf_i[4], sizeof(ptt));
 					syslog(LOG_INFO, "set ptt %d\n", ptt);
-					if (radioif_set_ptt(&rif, ptt)) {
+					if (hr50_set_ptt(&rif, ptt)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -268,7 +269,7 @@ int main(int argc, char *argv[])
 					ret = RET_ERR;
 				}
 			case CMD_GET_PTT:
-				if (radioif_get_ptt(&rif, &ptt)) {
+				if (hr50_get_ptt(&rif, &ptt)) {
 					res = RET_ERR;
 				} else {
 					syslog(LOG_INFO, "get ptt %d\n", ptt);
@@ -282,7 +283,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(mode)) {
 					memcpy(&mode, &cmdbuf_i[4], sizeof(mode));
 					syslog(LOG_INFO, "set mode %d\n", mode);
-					if (radioif_set_mode(&rif, mode)) {
+					if (hr50_set_mode(&rif, mode)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -291,7 +292,7 @@ int main(int argc, char *argv[])
 					ret = RET_ERR;
 				}
 			case CMD_GET_MODE:
-				if (radioif_get_mode(&rif, &mode)) {
+				if (hr50_get_mode(&rif, &mode)) {
 					res = RET_ERR;
 				} else {
 					syslog(LOG_INFO, "get mode %d\n", mode);

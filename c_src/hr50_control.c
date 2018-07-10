@@ -352,14 +352,14 @@ int hr50_control_init(radioif_t *rif)
 		syslog(LOG_INFO,"hr50_control: failed to open serial port\n");
 		return -1;
 	}
-	radioif_set_band = hr50_set_band;
-	radioif_get_band = hr50_get_band;
-	radioif_set_freq = hr50_set_freq;
-	radioif_get_freq = hr50_get_freq;
-	radioif_set_ptt =  hr50_set_ptt;
-	radioif_get_ptt =  hr50_get_ptt;
-	radioif_set_mode =  hr50_set_mode;
-	radioif_get_mode =  hr50_get_mode;
+	// radioif_set_band = hr50_set_band;
+	// radioif_get_band = hr50_get_band;
+	// radioif_set_freq = hr50_set_freq;
+	// radioif_get_freq = hr50_get_freq;
+	// radioif_set_ptt =  hr50_set_ptt;
+	// radioif_get_ptt =  hr50_get_ptt;
+	// radioif_set_mode =  hr50_set_mode;
+	// radioif_get_mode =  hr50_get_mode;
 	sleep(1); // give serial port time to fire up (seems to be needed)	
 	return 0;
 }

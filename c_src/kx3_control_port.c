@@ -53,6 +53,8 @@
 #define CMD_GET_PTT 			0x0006
 #define CMD_SET_MODE 			0x0007
 #define CMD_GET_MODE 			0x0008
+#define CMD_SET_CHAN 			0x0009
+#define CMD_GET_CHAN 			0x000a
 
 // port return codes
 #define RET_OK				0x0000 // 0
@@ -163,6 +165,7 @@ int main(int argc, char *argv[])
 	int freq;
 	int ptt;
 	int mode;
+	int chan;
 
     /* open the log */
 	openlog("kx3_control_port", 0, LOG_USER);
@@ -174,17 +177,17 @@ int main(int argc, char *argv[])
 	}
 
 	// // make sure PTT off
-	// if (radioif_set_ptt(&rif, 0)) {
+	// if (kx3_set_ptt(&rif, 0)) {
 	// 	syslog(LOG_ERR,"failed to set ptt\n");
 	// 	return -1;
 	// }
 	// // set initial BAND
-	// if (radioif_set_band(&rif, c_radio_band)) {
+	// if (kx3_set_band(&rif, c_radio_band)) {
 	// 	syslog(LOG_ERR,"failed to set band\n");
 	// 	return -1;
 	// }
 	// // set initial FREQ
-	// if (radioif_set_freq(&rif, c_radio_frequency[c_radio_band])) {
+	// if (kx3_set_freq(&rif, c_radio_frequency[c_radio_band])) {
 	// 	syslog(LOG_ERR,"failed to set freq\n");
 	// 	return -1;
 	// }	
@@ -241,7 +244,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(band)) { 
 					memcpy(&band, &cmdbuf_i[4], sizeof(band));
 					syslog(LOG_INFO, "set band %d\n", band);
-					if (radioif_set_band(&rif, band)) {
+					if (kx3_set_band(&rif, band)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -251,7 +254,7 @@ int main(int argc, char *argv[])
 				}
 				break;
 			case CMD_GET_BAND:
-				if (radioif_get_band(&rif, &band)) {
+				if (kx3_get_band(&rif, &band)) {
 					res = RET_ERR;
 				} else {
 					syslog(LOG_INFO, "get band %d\n", band);
@@ -265,7 +268,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(freq)) {
 					memcpy(&freq, &cmdbuf_i[4], sizeof(freq));
 					// syslog(LOG_INFO, "set freq %d\n", write_total);
-					if (radioif_set_freq(&rif, freq)) {
+					if (kx3_set_freq(&rif, freq)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -275,7 +278,7 @@ int main(int argc, char *argv[])
 				}
 				break;
 			case CMD_GET_FREQ:
-				if (radioif_get_freq(&rif, &freq)) {
+				if (kx3_get_freq(&rif, &freq)) {
 					res = RET_ERR;
 				} else {
 					// syslog(LOG_INFO, "get freq %d\n", freq);
@@ -289,7 +292,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(ptt)) {
 					memcpy(&ptt, &cmdbuf_i[4], sizeof(ptt));
 					syslog(LOG_INFO, "set ptt %d\n", ptt);
-					if (radioif_set_ptt(&rif, ptt)) {
+					if (kx3_set_ptt(&rif, ptt)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -297,8 +300,9 @@ int main(int argc, char *argv[])
 					syslog(LOG_ERR, "invalid write length for set ptt %d\n", write_total);
 					ret = RET_ERR;
 				}
+				break;
 			case CMD_GET_PTT:
-				if (radioif_get_ptt(&rif, &ptt)) {
+				if (kx3_get_ptt(&rif, &ptt)) {
 					res = RET_ERR;
 				} else {
 					syslog(LOG_INFO, "get ptt %d\n", ptt);
@@ -312,7 +316,7 @@ int main(int argc, char *argv[])
 				if (write_total <= sizeof(mode)) {
 					memcpy(&mode, &cmdbuf_i[4], sizeof(mode));
 					// syslog(LOG_INFO, "set mode %d\n", mode);
-					if (radioif_set_mode(&rif, mode)) {
+					if (kx3_set_mode(&rif, mode)) {
 						res = RET_ERR;
 					}
 					res = RET_OK;
@@ -320,8 +324,9 @@ int main(int argc, char *argv[])
 					syslog(LOG_ERR, "invalid write length for set mode %d\n", write_total);
 					ret = RET_ERR;
 				}
+				break;
 			case CMD_GET_MODE:
-				if (radioif_get_mode(&rif, &mode)) {
+				if (kx3_get_mode(&rif, &mode)) {
 					res = RET_ERR;
 				} else {
 					// syslog(LOG_INFO, "get mode %d\n", mode);
@@ -329,7 +334,30 @@ int main(int argc, char *argv[])
 					res = RET_OK;
 					res_data_len = 4;
 				}
-				break;				
+				break;	
+			case CMD_SET_CHAN:
+				// write_total = cmd_words[0];
+				// if (write_total <= sizeof(chan)) {
+				// 	memcpy(&chan, &cmdbuf_i[4], sizeof(chan));
+				// 	if (kx3_set_chan(&rif, chan)) {
+				// 		res = RET_ERR;
+				// 	}
+					res = RET_OK;
+				// } else {
+				// 	syslog(LOG_ERR, "invalid write length for set chan %d\n", write_total);
+				// 	ret = RET_ERR;
+				// }
+				break;
+			case CMD_GET_CHAN:
+				// if (kx3_get_chan(&rif, &chan)) {
+					// res = RET_ERR;
+				// } else {
+					// syslog(LOG_INFO, "get chan %d\n", chan);
+					// memcpy(&cmdbuf_o[2], &chan, sizeof(chan));
+					res = RET_OK;
+					// res_data_len = 4;
+				// }
+				break;								
 			default:
 				syslog(LOG_INFO, "error: invalid command %x\n", op);
 				res = RET_ERR;
