@@ -407,8 +407,8 @@ init([]) ->
     % abort_tx(),
     % spawn_tell_user_eot(),
 
-    %% startup the sounding timer
-    SndTimerRef = start_sounding_timer(TransmitControlType, ?ALE_SOUNDING_PERIOD),
+    %% startup the sounding timer to fire in the retry period (5-min after startup)
+    SndTimerRef = start_sounding_timer(TransmitControlType, ?ALE_SOUNDING_RETRY_PERIOD),
 
     %% OK go idle
     {ok, idle, #state{  sound_timer_ref=SndTimerRef, 
@@ -1065,7 +1065,7 @@ call_wait_tx_complete(timeout, State) ->
     abort_tx(),
     spawn_tell_user_eot(),
     lager:error("timeout occurred while waiting for tx_complete"),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},    
     next_state_idle(NewState).
 
@@ -1187,10 +1187,21 @@ sounding_tune_wait_lbt({current_freq,Freq}, State) ->
     idle({current_freq,Freq}, NextState);
 sounding_tune_wait_lbt({rx_word, Word}, State=#state{timeout=Timeout, message_state=MessageState}) ->
     NewMessageState = receive_msg(Word, MessageState),
-    case NewMessageState#msg_state.status of
-        complete ->
-            Conclusion = NewMessageState#msg_state.conclusion,                
-            [_Type|FromAddr] = lists:flatten(Conclusion),
+    Conclusion = lists:flatten(NewMessageState#msg_state.conclusion),
+    
+    case {NewMessageState#msg_state.status, Conclusion} of
+        {_, []} ->
+            lager:debug("incomplete or fragment recieved during sounding"),
+            %% take no action
+            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+            NewState = State#state{message_state=NewMessageState, timeout=NextTimeout},
+            {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};
+        {incomplete,_} ->
+            %% take no action
+            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
+            NewState = State#state{message_state=NewMessageState, timeout=NextTimeout},
+            {next_state, sounding_tune_wait_lbt, NewState, NextTimeout};
+        {complete, [_ConclusionType|FromAddr]} ->
             From = string:strip(lists:flatten(FromAddr),right,$@),
             SelfAddressMatch = radio_db:read_self_address(From),                    
             case SelfAddressMatch of
@@ -1211,12 +1222,7 @@ sounding_tune_wait_lbt({rx_word, Word}, State=#state{timeout=Timeout, message_st
                     NextTimeout = next_timeout(Timeout, ?ALE_TRW),
                     NewState=State#state{timeout=NextTimeout,  message_state=#msg_state{}, eot=false},
                     {next_state, sounding_tune_wait_lbt, NewState, NextTimeout}
-            end;
-        incomplete ->
-            %% take no action
-            NextTimeout = next_timeout(Timeout, ?ALE_TRW),
-            NewState = State#state{message_state=NewMessageState, timeout=NextTimeout},
-            {next_state, sounding_tune_wait_lbt, NewState, NextTimeout}
+            end
 		end.
 
 sounding({current_freq,Freq}, State) ->
@@ -1364,7 +1370,7 @@ call_wait_handshake_response({rx_word, Word}, State=#state{ link_state=LinkState
                     case {To, OtherAddress} of
                         { MyAddress, From } ->
                             lager:notice("got link rejection from ~p BER: ~p", [FromAddr, Ber]),
-                            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+                            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
                             NewState=State#state{sound_timer_ref=SndTimerRef},                             
                             next_state_idle(NewState);
                         _Others ->
@@ -1515,7 +1521,7 @@ call_wait_handshake_response(timeout, State=#state{ link_state=LinkState,
                     next_state_idle(State);
                 {unlinked, false} ->
                     lager:warning("IMPLEMENT ME: call response timeout, alert user"),
-                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
                     NewState=State#state{sound_timer_ref=SndTimerRef},             
                     next_state_idle(NewState);
                 {linked, true} ->
@@ -1534,7 +1540,7 @@ call_wait_handshake_response(timeout, State=#state{ link_state=LinkState,
             case LinkState of
                 unlinked ->
                     lager:warning("IMPLEMENT ME: call response timeout, alert user"),
-                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
                     NewState=State#state{sound_timer_ref=SndTimerRef},             
                     next_state_idle(NewState);
                 linked ->
@@ -1618,7 +1624,7 @@ call_ack(timeout, State) ->
     
     spawn_tell_user_eot(),
     lager:error("call_ack: datalink timeout: check modem!"),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).	
 
@@ -1688,7 +1694,7 @@ call_wait_response_tx_complete(timeout, State) ->
     
     spawn_tell_user_eot(),
     lager:error("call_wait_response_tx_complete: tx timeout! Check hardware!"),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).
 
@@ -2378,7 +2384,7 @@ call_linked({current_freq,Freq}, State) ->
     {next_state, call_linked, State, ?ALE_TWA};    
 call_linked(timeout, State) ->
     lager:notice("link idle timeout with ~p", [State#state.other_address]),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).
 
@@ -2400,7 +2406,7 @@ call_linked_wait_terminate({rx_word, Word}, State=#state{timeout=Timeout,eot=Eot
 call_linked_wait_terminate({tx_complete}, State) ->
     lager:notice("link terminated"),
     spawn_tell_user_eot(),    
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef}, 
     next_state_idle(NewState);
 call_linked_wait_terminate(timeout, State) ->
@@ -2413,7 +2419,7 @@ call_linked_wait_terminate(timeout, State) ->
     
     spawn_tell_user_eot(),
     lager:error("datalink timeout during link termination"),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).
 
