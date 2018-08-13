@@ -18,6 +18,8 @@
 
 -module(radio_control_port).
 
+-include("radio.hrl").
+
 -export([open/0,close/0,init/3]).
 
 -export([   set_band/1
@@ -33,6 +35,15 @@
             ,rf_switch/1
             ,tuner/1
             ,set_control_port/1
+            , transmit_control/2
+            , set_transmit_control/1
+        , tune_transmitter/2
+        , transmitter_mode/2
+        
+            
+            
+        % , set_tuner_control/1
+            
         ]).
 
 -export([start_link/0]).
@@ -44,6 +55,77 @@ set_control_port(codan_control_port) ->
     radio_db:write_config(radio_control_port, codan_control_port);    
 set_control_port(none) ->
     radio_db:write_config(radio_control_port, none).
+
+%%
+%% Radio control TX handling
+%%
+transmit_control(none, Mode) ->
+    %% do nothing, no radio to control
+    {ok, Mode};
+transmit_control(internal, Mode) ->
+    lager:debug("radio control internal not yet implemented"),
+    {ok, Mode};
+transmit_control(external, on) ->
+    radio_control_port:rf_switch(on),
+    radio_control_port:set_ptt(on);
+transmit_control(external, off) ->
+    radio_control_port:set_ptt(off),
+    timer:sleep(50), %%% <<== THIS DELAY REQUIRED TO PREVENT RF GLITCH FROM HARMING RX
+    radio_control_port:rf_switch(off).
+
+transmitter_mode(none, _Chan) ->
+    %% no transmitter
+    ok;
+transmitter_mode(internal, _Chan) ->
+    lager:debug("internal tune radio not implemented"),
+    ok;
+transmitter_mode(external, Chan) when Chan#channel.sideband == <<"LSB">> ->
+    {ok, _Ret3} = radio_control_port:set_mode(1),
+    ok;
+transmitter_mode(external, Chan) when Chan#channel.sideband == <<"USB">> ->
+    {ok, _Ret3} = radio_control_port:set_mode(2),
+    ok.
+
+%%
+%% Helpers for setting transmit, pa, and tuner control
+%% makes it easier and prevents invalid values....
+%%
+set_transmit_control(external) ->
+    radio_db:write_config(transmit_control, external);
+set_transmit_control(internal) ->
+    radio_db:write_config(transmit_control, internal);
+set_transmit_control(none) ->
+    radio_db:write_config(transmit_control, none).
+
+% set_tuner_control(external) ->
+%     radio_db:write_config(tuner_control, external);
+% set_tuner_control(internal) ->
+%     radio_db:write_config(tuner_control, internal);
+% set_tuner_control(none) ->
+%     radio_db:write_config(tuner_control, none).
+
+
+tune_transmitter(none, Chan) ->
+    %% no radio (transmitter) to tune
+    Chan#channel.frequency;
+tune_transmitter(internal, Chan) ->
+    lager:debug("internal tune radio not implemented"),
+    Chan#channel.frequency;
+tune_transmitter(external, Chan) ->
+    ChanFreq = Chan#channel.frequency,
+    {ok, _Ret2} = radio_control_port:set_chan(Chan#channel.id),
+    {ok, _Ret3} = radio_control_port:set_freq(ChanFreq),
+    ChanFreq.
+
+%%
+%% Tuner control handling
+%%
+% tuner_control(none, Mode) ->
+%     %% do nothing, no radio to control
+%     {ok, Mode};
+% tuner_control(external, Mode) ->
+%     radio_control_port:tuner(Mode).
+
 
 start_link() ->
     Pid = open(),
@@ -266,18 +348,18 @@ loop({Port, Rfswctl, Pttctl, Tunerctl}) ->
             %% XXX FIXME: get this outta here!!!
             %% Set tuner to scan mode
             %% For SG230, this means toggling the reset line.
-            ok = gpio:write(Tunerctl, 1),
-            timer:sleep(100),
-            ok = gpio:write(Tunerctl, 0),
+            % ok = gpio:write(Tunerctl, 1),
+            % timer:sleep(100),
+            % ok = gpio:write(Tunerctl, 0),
             Caller ! {radio_control_proc, {ok, off}},                 
             loop({Port, Rfswctl, Pttctl, Tunerctl});
         {tuner, Caller, scan} ->
             %% XXX FIXME: get this outta here!!!
             %% Set tuner to scan mode
             %% For SG230, this means toggling the reset line.
-            ok = gpio:write(Tunerctl, 1),
-            timer:sleep(100),
-            ok = gpio:write(Tunerctl, 0),
+            % ok = gpio:write(Tunerctl, 1),
+            % timer:sleep(100),
+            % ok = gpio:write(Tunerctl, 0),
             Caller ! {radio_control_proc, {ok,scan}},           
             loop({Port, Rfswctl, Pttctl, Tunerctl});
         {tuner, Caller, tuned} ->

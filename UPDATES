@@ -10,6 +10,24 @@ TODO:
 - support making netcalls, global allcalls, global anycalls
 
 
+BUG: 06:38:24.981 [notice] heard termination message; not for us: {[to,75,81,54,88,65,64],[],[tws,"KA2"]} BER: 27
+06:38:24.981 [notice] got terminate, exiting...
+06:38:24.982 [error] gen_fsm ale in state call_wait_handshake_response terminated with reason: no match of right ha
+nd value {msg_state,incomplete,idle,[],[],[],[],none,0,0,31,0} in ale:call_wait_handshake_response/2 line 1402
+06:38:24.986 [error] CRASH REPORT Process ale with 0 neighbours exited with reason: no match of right hand value {m
+sg_state,incomplete,idle,[],[],[],[],none,0,0,31,0} in ale:call_wait_handshake_response/2 line 1402 in gen_fsm:term
+inate/7 line 559
+baseband_io: fnctrl word 0xf0000001
+sent control messages
+06:38:24.987 [info] ALE Datalink starting...
+06:38:24.990 [error] Supervisor backend_sup had child ale started with ale:start_link() at <0.861.0> exit with reas
+on no match of right hand value {msg_state,incomplete,idle,[],[],[],[],none,0,0,31,0} in ale:call_wait_handshake_re
+sponse/2 line 1402 in context child_terminated
+06:38:25.155 [debug] Supervisor backend_sup started ale:start_link() at pid <0.876.0>
+word=0x1772e0b2 stored message type = 0x3
+
+BUG: sending AMD no longer works after linked!
+
 FIXED: BUG: While linked this happened:
 01:29:42.614 [notice] got terminate, exiting...
 01:29:42.614 [error] gen_fsm ale in state call_linked terminated with reason: no match of right hand value [] in ale:call_linked/2 line 1985

@@ -89,7 +89,8 @@ send_daily_contacts([Contact|ContactList]) ->
 send_daily_contacts([],_Timestamp) ->
     ok;
 send_daily_contacts([Contact|ContactList], Timestamp) ->
-    lager:debug("Timestamp=~p, time=~p",[Timestamp,Contact#contact.time]),
+    lager:debug("Contact=~p",[Contact]),
+    % lager:debug("Timestamp=~p, time=~p",[Timestamp,Contact#contact.time]),
     Tdiff = Timestamp - Contact#contact.time,
     case Tdiff < 86400 of %% is less than 24 hrs ??
         true ->

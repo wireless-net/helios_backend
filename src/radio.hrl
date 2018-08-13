@@ -16,6 +16,8 @@
 %% Floor, Boston, MA 02110-1301, USA.
 %% 
 
+-include("alqa.hrl").
+
 %% Config table is used to store parameters for this modem:
 %% id 			"K6DRS"
 %% host_addr	"192.168.1.209"
@@ -68,7 +70,7 @@
 	}).
 
 -record(self_address, {
-		%% The address string value	
+		%% The address string value	 
 		id 				,%= undefined,
 		%% own, net, allcall, selective allcall, anycal, selective anycall
 		type 			,%= undefined,

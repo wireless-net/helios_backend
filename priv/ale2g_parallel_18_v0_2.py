@@ -64,7 +64,7 @@ class ale2g_parallel_18_v0_2(gr.top_block):
         # Blocks
         ##################################################
         self.k6drs_sideband_selector_0 = k6drs.sideband_selector()
-        self.k6drs_portaudio_0 = k6drs.portaudio(8000)
+        self.k6drs_portaudio_0 = k6drs.portaudio(8000,2)
         self.k6drs_command_decoder_0 = k6drs.command_decoder(center_freq_0)
         self.k6drs_baseband_io_0 = k6drs.baseband_io('192.168.0.225', '127.0.0.1', 12347)
         self.k6drs_band_selector_0 = k6drs.band_selector(640000)

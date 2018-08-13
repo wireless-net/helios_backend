@@ -35,16 +35,22 @@
 
 -module(pa_control_port).
 
+-include("radio.hrl").
+
 -export([open/2,close/0,init/4]).
 
--export([   set_band/1
-            ,get_band/0
-            ,set_freq/1
-            ,get_freq/0
-            ,set_ptt/1
-            ,get_ptt/0
-            ,set_mode/1
-            ,get_mode/0
+-export([    set_band/1
+            , get_band/0
+            , set_freq/1
+            , get_freq/0
+            , set_ptt/1
+            , get_ptt/0
+            , set_mode/1
+            , get_mode/0
+            , set_pa_control/1
+        , tune_pa/2
+            
+
         ]).
 
 -export([start_link/0]).
@@ -114,6 +120,32 @@ call_port(Msg) ->
             Result
     end.
 
+set_pa_control(external) ->
+    radio_db:write_config(pa_control, external);
+set_pa_control(internal) ->
+    radio_db:write_config(pa_control, internal);
+set_pa_control(none) ->
+    radio_db:write_config(pa_control, none).
+
+%%
+%% PA control handling
+%%
+pa_control_set_freq(none, Freq) ->
+    {ok, Freq};
+pa_control_set_freq(external, Freq) ->
+    pa_control_port:set_freq(Freq).
+
+tune_pa(none, Chan) ->
+    %% no PA to tune
+    Chan#channel.frequency;
+tune_pa(internal, Chan) ->
+    lager:debug("internal tune PA not implemented"),
+    Chan#channel.frequency;
+tune_pa(external, Chan) ->
+    ChanFreq = Chan#channel.frequency,
+    {ok, _Ret2} = pa_control_set_freq(external, ChanFreq),
+    ChanFreq.	
+
 init(nop, _, _, _) ->
     register(pa_control_proc, self()),
     process_flag(trap_exit, true),
@@ -123,6 +155,7 @@ init(op, ExtPrg, _Device, _Rate) ->
     process_flag(trap_exit, true),
     Port = open_port({spawn_executable, ExtPrg}, [{args, []}, {packet, 2}, use_stdio, binary, exit_status]),
     loop(Port).
+
 
 %% The pa_control_proc process loop (No-OP version, when no hardware connected)
 loop(nop) ->

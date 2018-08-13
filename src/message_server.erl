@@ -36,6 +36,9 @@ init(UdpPort) ->
     process_flag(trap_exit, true),
     loop(Socket).
 
+send_words(<<16#40000000:32/unsigned-little-integer, Rest/binary>>) ->
+    ale:tx_complete(),
+    send_words(Rest);
 send_words(<<ALEWord:32/unsigned-little-integer, Rest/binary>>) ->
     % lager:info("ALE WORD: ~.16b~n", [ALEWord]),
     ale:rx(ALEWord),

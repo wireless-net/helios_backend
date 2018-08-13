@@ -26,6 +26,9 @@
 			,write_hflink_channels/0
 			,write_contact/1
 			,read_contact/1
+			,write_alqa/1
+			,read_alqa/1
+			,read_all_alqas/0
 			,channel_count/0
 			,read_all_contacts/0
 			,find_channel/1
@@ -49,6 +52,7 @@ create_database(OwnAddr) ->
     {atomic, ok} = mnesia:create_table(config, [{disc_copies, [node()]},{attributes, record_info(fields, config)}]),
     {atomic, ok} = mnesia:create_table(channel, [{disc_copies, [node()]},{attributes, record_info(fields, channel)}]),
     {atomic, ok} = mnesia:create_table(contact, [{disc_copies, [node()]},{attributes, record_info(fields, contact)}]),
+    {atomic, ok} = mnesia:create_table(alqa, [{disc_copies, [node()]},{attributes, record_info(fields, alqa)}]),
 	{atomic, ok} = mnesia:create_table(self_address, [{disc_copies, [node()]},{attributes, record_info(fields, self_address)}]),
 	{atomic, ok} = mnesia:create_table(other_address, [{disc_copies, [node()]},{attributes, record_info(fields, other_address)}]),
 	{atomic, ok} = radio_db:write_config(id, OwnAddr),
@@ -72,7 +76,7 @@ create_database(OwnAddr) ->
 	{atomic, ok} = radio_db:write_config(hflink_reporting, false),
 	{atomic, ok} = radio_db:write_config(radio_control_port, none),
 	{atomic, ok} = radio_db:write_config(transmit_control, none),
-    {atomic, ok} = radio_db:write_config(tuner_control, none),
+    % {atomic, ok} = radio_db:write_config(tuner_control, none),
     {atomic, ok} = radio_db:write_config(pa_control, none),
 	ok.
 
@@ -164,7 +168,9 @@ write_hflink_channels() ->
 	write_channel(15,	18106000,	6, <<"USB">>,	<<"DATA">>,			<<"Primary Intl.">>, 			<<"18AHFN">>,	<<"Auto">>),
 	write_channel(16,	18117500,	6, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"18BHFL">>, 	<<"Attended">>),
 	write_channel(17,	21096000,	7, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"21AHFN">>,	<<"Auto">>),
-	write_channel(18,	21432500,	7, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"21BHFL">>, 	<<"Attended">>).
+	write_channel(18,	21432500,	7, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"21BHFL">>, 	<<"Attended">>),
+	write_channel(19,	7100000,	3, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"HFS7B">>, 	<<"Attended">>),
+	write_channel(20,	7195000,	3, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"HFS7C">>, 	<<"Attended">>).
 
 
 	% write_channel(25, 	24926000,	<<"USB	DATA Auxiliary 24AHFN	Auto Attended
@@ -196,6 +202,32 @@ read_contact(Id) ->
 
 read_all_contacts() ->
 	F = fun() -> mnesia:select(contact,[{'_',[],['$_']}]) end,
+	try mnesia:activity(transaction, F) of
+		Contacts -> Contacts
+	catch 
+		_:_ -> []
+	end.
+
+%% if successful, returns {atomic, ok}
+write_alqa(Alqa) ->
+    Fun = fun() ->
+		mnesia:write(Alqa)
+	end,
+    mnesia:transaction(Fun).
+
+read_alqa(Id) ->
+	Fun = fun() ->
+		mnesia:read({alqa, Id})
+	end,
+	case mnesia:transaction(Fun) of
+		{atomic,[Record]} ->
+			{ok, Record};
+		{atomic, []} ->
+			{error, not_found}
+	end.
+
+read_all_alqas() ->
+	F = fun() -> mnesia:select(alqa,[{'_',[],['$_']}]) end,
 	try mnesia:activity(transaction, F) of
 		Contacts -> Contacts
 	catch 
