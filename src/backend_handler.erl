@@ -91,10 +91,19 @@ send_daily_contacts([],_Timestamp) ->
 send_daily_contacts([Contact|ContactList], Timestamp) ->
     lager:debug("Contact=~p",[Contact]),
     % lager:debug("Timestamp=~p, time=~p",[Timestamp,Contact#contact.time]),
-    Tdiff = Timestamp - Contact#contact.time,
+
+    %% must handle case where SELCALL addresses are stored, since
+    %% these are just integers and cause problems for to_json()
+    NewContact = case is_number(Contact#contact.id) of
+                     true -> 
+                         Contact#contact{id = integer_to_binary(Contact#contact.id)};
+                     false ->
+                         Contact
+                 end,
+    Tdiff = Timestamp - NewContact#contact.time,
     case Tdiff < 86400 of %% is less than 24 hrs ??
         true ->
-            ContactEJSON = contact:to_json(Contact),
+            ContactEJSON = contact:to_json(NewContact),
             ContactMsg = build_response([{event,ale_new_contact}, {data, jsx:encode(ContactEJSON)}]),
             backend_handler ! {data, ContactMsg},
             send_daily_contacts(ContactList, Timestamp);

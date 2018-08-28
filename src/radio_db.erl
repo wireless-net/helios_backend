@@ -39,7 +39,6 @@
 			,read_other_address/1
 		]).
 
-
 -include("radio.hrl").
 
 % Must first do this:
@@ -59,6 +58,7 @@ create_database(OwnAddr) ->
 	{atomic, ok} = radio_db:write_hflink_channels(),
 	%% OWN: 	
 	{atomic, ok} = radio_db:write_self_address(OwnAddr, own, none, [], [all], default),
+
 	{atomic, ok} = radio_db:write_self_address("?@?", own, none, [], [all], default),	
 	%% NULL:	
 	{atomic, ok} = radio_db:write_self_address("", null, none, [], [], default), 
@@ -169,15 +169,10 @@ write_hflink_channels() ->
 	write_channel(16,	18117500,	6, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"18BHFL">>, 	<<"Attended">>),
 	write_channel(17,	21096000,	7, <<"USB">>,	<<"DATA">>, 		<<"Primary Intl.">>, 			<<"21AHFN">>,	<<"Auto">>),
 	write_channel(18,	21432500,	7, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"21BHFL">>, 	<<"Attended">>),
-	write_channel(19,	7100000,	3, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"HFS7B">>, 	<<"Attended">>),
-	write_channel(20,	7195000,	3, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 			<<"HFS7C">>, 	<<"Attended">>).
-
-
-	% write_channel(25, 	24926000,	<<"USB	DATA Auxiliary 24AHFN	Auto Attended
-	% write_channel(26, 	24932000,	<<"USB	VOICE Auxiliary 24BHFL Attended
-	% write_channel(27,	28146000,	9, <<"USB">>,	<<"DATA PRIMARY">>, <<"International">>, 	<<"HFN">>,		<<"Auto">>),
-	% write_channel(28,	28312500,	9, <<"USB">>,	<<"VOICE">>, 		<<"International">>, 	<<"HFL">>, 		<<"Attended">>).	
-
+	write_channel(19,	3845000,	1, <<"USB">>,	<<"VOICE">>, 		<<"North America">>, 			<<"HFS3C">>, 	<<"Attended">>),
+	write_channel(20,	5403500,	2, <<"USB">>,	<<"VOICE">>, 		<<"North America">>, 			<<"HFS5A">>, 	<<"Attended">>),
+	write_channel(21,	7195000,	3, <<"USB">>,	<<"VOICE">>, 		<<"North America">>, 			<<"HFS7C">>, 	<<"Attended">>),
+	write_channel(22,	10144000,	4, <<"USB">>,	<<"VOICE">>, 		<<"North America">>, 			<<"HFS10B">>, 	<<"Attended">>).
 
 channel_count() ->
 	mnesia:table_info(channel, size).

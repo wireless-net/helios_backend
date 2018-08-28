@@ -46,4 +46,5 @@ init([]) ->
     Child3 = ?CHILD(pa_control_port, worker),
     Child4 = ?CHILD(dsp_port, worker),
     Child5 = ?CHILD(ale, worker),
-    {ok, { {one_for_one, 5, 10}, [Child2, Child3, Child4, Child5]} }.
+    Child6 = ?CHILD(hecate, worker),
+    {ok, { {one_for_one, 5, 10}, [Child2, Child3, Child4, Child5, Child6]} }.

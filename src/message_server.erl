@@ -25,6 +25,8 @@
 -define(MESSAGE_PORT,   12345).
 -define(CMD_PORT,       54321).
 
+-include("protocols.hrl").
+
 start_link() ->
     Pid = spawn_link(?MODULE, init, [?MESSAGE_PORT]),
     {ok, Pid}.
@@ -36,34 +38,43 @@ init(UdpPort) ->
     process_flag(trap_exit, true),
     loop(Socket).
 
-send_words(<<16#40000000:32/unsigned-little-integer, Rest/binary>>) ->
-    ale:tx_complete(),
-    send_words(Rest);
-send_words(<<ALEWord:32/unsigned-little-integer, Rest/binary>>) ->
-    % lager:info("ALE WORD: ~.16b~n", [ALEWord]),
-    ale:rx(ALEWord),
-    send_words(Rest);
-send_words(<<>>) ->
+%% FIXME: get rid of this and just send ALE servie a whole message in a single shot (once it's updated)
+% send_words(Service, <<16#40000000:32/unsigned-little-integer, Rest/binary>>) ->
+    % send_words(Service, Rest);
+send_words(Service, <<Word:32/unsigned-little-integer, Rest/binary>>) ->
+    Service:rx(Word),
+    send_words(Service,Rest);
+send_words(_Service,<<>>) ->
     ok.
+
+relay_message(<<16#40000000:32/unsigned-little-integer, _Rest/binary>>) ->
+    %% FIXME!!!
+    ale:tx_complete(),
+    hecate:tx_complete();
+relay_message(<<?PROTOCOL_ALE_2G:32/unsigned-little-integer, Rest/binary>>) ->
+    send_words(ale,Rest);
+relay_message(<<?PROTOCOL_CCIR_493_4:32/unsigned-little-integer, Rest/binary>>) ->
+    hecate:rx(Rest);
+relay_message(<<?PROTOCOL_REVERTIVE_DET:32/unsigned-little-integer, Rest/binary>>) ->
+    hecate:rx_revertive(Rest);
+relay_message(<<Other:32/unsigned-little-integer, _Rest/binary>>) ->
+    ale:tx_complete(), %% just in case!!
+    hecate:tx_complete(),
+    lager:error("unknown message protocol: ~p",[Other]).
 
 %% The frontend_port_proc process loop
 loop(Socket) ->
     % inet:setopts(Socket, [{active, once}]),
     receive
         {udp, Socket, _Host, _Port, Bin} ->
-            % lager:info("server received:~p~n",[Bin]),
-            % <<Freq:32/unsigned-little-integer, RestWithLen/binary>> = Bin,
-            % <<Len:32/unsigned-little-integer, Rest/binary>> = RestWithLen,
-            % lager:info("Freq=~p Len=~p",[Freq,Len]),
             case whereis(ale) of
                 undefined -> lager:warning("ALE datalink is not running");
                 _ ->
-                    send_words(Bin)
+                    relay_message(Bin)
             end,             
             % gen_udp:send(Socket, Host, Socket, Bin),
             loop(Socket);
         {cmd, MsgBin} ->
-            %%lager:debug("sending message: ~p", [MsgBin]),
             ok = gen_udp:send(Socket, {127,0,0,1}, ?CMD_PORT, MsgBin),
             loop(Socket);
         shutdown ->

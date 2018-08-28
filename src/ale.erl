@@ -132,7 +132,7 @@
 -define(ALE_CALL_MAX_RETRIES,   10).            %% Set internal upper limit for sanity
 
 %% TX message tail length to workaround soundcard latency and prevent message truncation
--define(SOUNDCARD_LATENCY, 100).
+-define(SOUNDCARD_LATENCY, 200).
 
 -record(msg_state, {
           status 			= incomplete,
@@ -326,7 +326,7 @@ init([]) ->
     % spawn_tell_user_eot(),
 
     %% startup the sounding timer to fire in the retry period (5-min after startup)
-    SndTimerRef = start_sounding_timer(TransmitControlType, ?ALE_SOUNDING_RETRY_PERIOD),
+    SndTimerRef = start_sounding_timer(TransmitControlType, ?ALE_SOUNDING_PERIOD),
 
     %% OK go idle
     {ok, idle, #state{  sound_timer_ref=SndTimerRef, 
@@ -1310,7 +1310,7 @@ call_wait_handshake_response({rx_word, Word}, State=#state{ link_state=LinkState
                     case {To, OtherAddress} of
                         { MyAddress, From } ->
                             lager:notice("got link rejection from ~p BER: ~p", [FromAddr, Ber]),
-                            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+                            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
                             NewState=State#state{sound_timer_ref=SndTimerRef},                             
                             next_state_idle(NewState);
                         _Others ->
@@ -1461,7 +1461,7 @@ call_wait_handshake_response(timeout, State=#state{ link_state=LinkState,
                     next_state_idle(State);
                 {unlinked, false} ->
                     lager:warning("IMPLEMENT ME: call response timeout, alert user"),
-                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
                     NewState=State#state{sound_timer_ref=SndTimerRef},             
                     next_state_idle(NewState);
                 {linked, true} ->
@@ -1480,7 +1480,7 @@ call_wait_handshake_response(timeout, State=#state{ link_state=LinkState,
             case LinkState of
                 unlinked ->
                     lager:warning("IMPLEMENT ME: call response timeout, alert user"),
-                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+                    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
                     NewState=State#state{sound_timer_ref=SndTimerRef},             
                     next_state_idle(NewState);
                 linked ->
@@ -1538,7 +1538,7 @@ call_ack(timeout, State) ->
     
     spawn_tell_user_eot(),
     lager:error("call_ack: datalink timeout: check modem!"),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).	
 
@@ -1582,7 +1582,7 @@ call_wait_response_tx_complete(timeout, State) ->
     
     spawn_tell_user_eot(),
     lager:error("call_wait_response_tx_complete: tx timeout! Check hardware!"),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).
 
@@ -2153,7 +2153,7 @@ call_linked({rx_word, Word}, State=#state{  other_address=OtherAddress,
                             lager:notice("got link termination from ~p BER: ~p", [FromAddr, Ber]),
                             spawn_notify_ale_event(ale_call_unlinked, {data,list_to_binary(OtherAddress)}),                            
 
-                            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+                            SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
                             NewState=State#state{sound_timer_ref=SndTimerRef},     
                             next_state_idle(NewState);
                         _Others ->
@@ -2237,7 +2237,7 @@ call_linked({current_freq,Freq}, State) ->
     {next_state, call_linked, State, ?ALE_TWA};    
 call_linked(timeout, State) ->
     lager:notice("link idle timeout with ~p", [State#state.other_address]),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).
 
@@ -2261,7 +2261,7 @@ call_linked_wait_terminate({tx_complete}, State) ->
     {ok, off} = radio_control_port:transmit_control(State#state.transmit_control, off),
     lager:notice("link terminated"),
     spawn_tell_user_eot(),    
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef}, 
     next_state_idle(NewState);
 call_linked_wait_terminate(timeout, State) ->
@@ -2274,7 +2274,7 @@ call_linked_wait_terminate(timeout, State) ->
     
     spawn_tell_user_eot(),
     lager:error("datalink timeout during link termination"),
-    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_RETRY_PERIOD),
+    SndTimerRef = start_sounding_timer(State#state.transmit_control, ?ALE_SOUNDING_PERIOD),
     NewState=State#state{sound_timer_ref=SndTimerRef},     
     next_state_idle(NewState).
 
@@ -2302,7 +2302,6 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
 %%
 %% Function to determine HFLink reporting smeter string. As per Alan Barrow KM4BA alan@pinztrek.com
 %% BER icon:

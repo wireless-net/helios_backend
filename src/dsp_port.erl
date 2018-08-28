@@ -26,7 +26,8 @@ start_link() ->
     {ok, Pid}.
 
 open() ->
-    spawn_link(?MODULE, init, [lists:concat([code:priv_dir(helios_backend),"/dsp.py"])]).
+    % spawn_link(?MODULE, init, [lists:concat([code:priv_dir(helios_backend),"/dsp.py"])]).
+    spawn_link(?MODULE, init, ["/opt/k6drs/gr-k6drs/examples/dsp.py"]).
 
 close() ->
     dsp_proc ! stop,
